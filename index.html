@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-CN"> <!-- 移除 class="dark"，恢复亮色模式 -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>魔法少女的视频网站</title>
+    
+    <!-- 1. 引入 Element Plus -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    
+    <!-- 2. 艺术字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=ZCOOL+KuaiLe&display=swap" rel="stylesheet">
+
+    <style>
+        /* === 明亮版魔法主题变量 === */
+        :root {
+            --magic-pink: #ff758c;
+            --magic-blue: #8aa9ff;
+            /* 白玻璃背景：75% 不透明度的白 */
+            --glass-bg: rgba(255, 255, 255, 0.75);
+            --glass-hover: rgba(255, 255, 255, 0.9);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            /* 深色文字，保证在亮背景下可读 */
+            --text-main: #4a4a4a;
+            --text-title: #2c3e50;
+            --shadow-soft: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            color: var(--text-main);
+            min-height: 100vh;
+            
+            /* 背景图设置 */
+            background-image: url('./bg.jpg'); 
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            background-repeat: no-repeat;
+        }
+
+        /* ❌ 删除了之前的 body::before 遮罩层，让图片原样展示 */
+
+        a { text-decoration: none; color: inherit; }
+
+        /* === 顶部导航：白水晶栏 === */
+        .navbar {
+            background: rgba(255, 255, 255, 0.6); /* 更加通透 */
+            border-bottom: 1px solid rgba(255, 255, 255, 0.8);
+            padding: 0 30px; height: 70px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 100;
+            backdrop-filter: blur(20px); /* 强力磨砂 */
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Logo 适配亮色背景 */
+        .logo {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 32px;
+            cursor: pointer;
+            display: flex; align-items: center;
+            /* 深粉色渐变，增加可读性 */
+            background: linear-gradient(45deg, #ff758c, #ff7eb3);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            filter: drop-shadow(0 2px 2px rgba(255, 255, 255, 0.8));
+            transition: transform 0.3s;
+        }
+        .logo:hover { transform: scale(1.05); }
+        
+        .nav-right .upload-btn {
+            background-image: linear-gradient(to right, #ff758c 0%, #ff7eb3 100%);
+            border: none; color: #fff; font-weight: bold; border-radius: 30px;
+            box-shadow: 0 4px 10px rgba(255, 117, 140, 0.4);
+            transition: all 0.3s;
+        }
+        .nav-right .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(255, 117, 140, 0.6);
+        }
+
+        .main-container { max-width: 1400px; margin: 30px auto; padding: 0 20px; }
+
+        /* === 视频卡片：云朵卡片 === */
+        .video-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
+        
+        .video-card { 
+            background: var(--glass-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px; overflow: hidden; cursor: pointer; 
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-soft);
+        }
+        .video-card:hover { 
+            transform: translateY(-8px); 
+            background: var(--glass-hover);
+            box-shadow: 0 15px 30px rgba(138, 169, 255, 0.25); 
+        }
+        
+        .card-cover { width: 100%; height: 170px; background: #eee; position: relative; overflow: hidden; }
+        .card-cover img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.5s; }
+        .video-card:hover .card-cover img { transform: scale(1.08); }
+        
+        .card-info { padding: 14px; }
+        .card-title { 
+            font-size: 16px; font-weight: bold; line-height: 1.4; height: 44px; overflow: hidden; 
+            color: var(--text-title); /* 深色标题 */
+            margin-bottom: 8px; 
+        }
+        .card-meta { display: flex; justify-content: space-between; font-size: 12px; color: #888; }
+
+        /* === 详情页 === */
+        .detail-layout { display: flex; gap: 40px; }
+        .left-column { flex: 3; }
+        .right-column { flex: 1; }
+        
+        .video-player-box { 
+            width: 100%; background: #000; border-radius: 12px; overflow: hidden; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2); margin-bottom: 20px;
+        }
+        
+        .video-header h1 { 
+            font-family: 'ZCOOL KuaiLe', cursive;
+            font-size: 30px; margin: 0 0 15px 0; color: var(--text-title); 
+            /* 白色描边效果 */
+            text-shadow: 2px 2px 0px #fff;
+        }
+        .video-data { 
+            color: #666; font-size: 14px; display: flex; align-items: center; gap: 25px; 
+            margin-bottom: 25px; padding-bottom: 20px; 
+            border-bottom: 1px solid rgba(0,0,0,0.05); /* 淡淡的分割线 */
+        }
+        
+        /* 互动按钮：浅色背景，深色图标 */
+        .action-btn { 
+            display: flex; align-items: center; cursor: pointer; font-size: 16px; color: #555;
+            background: rgba(255,255,255,0.6); padding: 8px 20px; border-radius: 50px; 
+            transition: all 0.3s; border: 1px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .action-btn:hover { background: #fff; transform: scale(1.05); color: var(--magic-pink); }
+        .action-btn.active { 
+            background: linear-gradient(to right, #ff9a9e, #fad0c4); 
+            color: #fff; border: none; box-shadow: 0 4px 10px rgba(255, 154, 158, 0.4);
+        }
+
+        /* === 评论区 === */
+        .glass-panel {
+            background: var(--glass-bg); backdrop-filter: blur(20px);
+            padding: 25px; border-radius: 16px; border: 1px solid var(--glass-border);
+            box-shadow: var(--shadow-soft);
+        }
+        .comment-area h3 { 
+            font-family: 'ZCOOL KuaiLe', cursive; color: var(--text-title); 
+            border-left: 5px solid var(--magic-pink); padding-left: 15px; 
+        }
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #fff; background: #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        .user-name { font-size: 14px; color: #555; font-weight: bold; margin-bottom: 6px; }
+        .comment-text { font-size: 15px; line-height: 1.6; color: #333; }
+        .comment-time { color: #999; font-size: 12px; margin-top: 5px; }
+
+        /* === 上传页 === */
+        .upload-container { 
+            max-width: 700px; margin: 60px auto; 
+            background: rgba(255, 255, 255, 0.85); /* 不透明度更高，防止看不清输入框 */
+            backdrop-filter: blur(25px);
+            padding: 50px; border-radius: 24px; 
+            box-shadow: 0 20px 60px rgba(138, 169, 255, 0.2);
+            border: 1px solid #fff; position: relative;
+        }
+        .upload-title { 
+            font-family: 'Ma Shan Zheng', cursive;
+            text-align: center; font-size: 36px; margin-bottom: 40px; 
+            background: linear-gradient(to right, #8aa9ff 0%, #ff758c 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        
+        /* 换肤球 */
+        .theme-fab {
+            position: fixed; bottom: 40px; right: 40px; width: 60px; height: 60px;
+            background: #fff;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 999; box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            transition: all 0.4s; border: 2px solid #f0f0f0;
+        }
+        .theme-fab:hover { transform: rotate(90deg) scale(1.1); border-color: var(--magic-blue); }
+
+        /* === Element Plus 覆盖 (适配亮色) === */
+        .el-input__wrapper, .el-textarea__inner {
+            background-color: rgba(255,255,255,0.6) !important;
+            border: 1px solid rgba(0,0,0,0.1) !important;
+            color: #333 !important; border-radius: 8px !important;
+            box-shadow: none !important;
+        }
+        .el-input__wrapper:hover { background-color: #fff !important; border-color: var(--magic-blue) !important; }
+        .el-loading-mask { background-color: rgba(255,255,255,0.6) !important; backdrop-filter: blur(5px); }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <nav class="navbar">
+        <div class="logo" @click="goHome">
+            <el-icon :size="32" style="margin-right:10px; color:#ff758c;"><Magic-Stick /></el-icon>
+            魔法少女的视频网站
+        </div>
+        <div class="nav-right">
+            <el-button round class="upload-btn" @click="goUpload">
+                <el-icon style="margin-right:6px"><Camera-Filled /></el-icon> 施法投稿
+            </el-button>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <router-view></router-view>
+    </div>
+
+    <el-tooltip content="咏唱：更换背景" placement="left" effect="dark">
+        <div class="theme-fab" @click="triggerBgInput">
+            <el-icon :size="28" color="#8aa9ff"><Picture-Filled /></el-icon>
+        </div>
+    </el-tooltip>
+    <input type="file" id="bgInput" accept="image/*" style="display:none" @change="changeBackground">
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/vue-router@4/dist/vue-router.global.js"></script>
+<script src="https://unpkg.com/element-plus"></script>
+<script src="https://unpkg.com/@element-plus/icons-vue"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+<script>
+    const { createApp, ref, reactive, onMounted } = Vue;
+    const { createRouter, createWebHashHistory, useRoute, useRouter } = VueRouter;
+
+    // ⚠️ 记得确认你的后端 IP (如果是在 Linux 虚拟机，改这里)
+    const API_BASE = 'http://localhost:8080'; 
+
+    // ================= Home 组件 =================
+    const Home = {
+        template: `
+            <div class="video-grid" v-loading="loading">
+                <div class="video-card" v-for="item in list" :key="item.id" @click="goDetail(item)">
+                    <div class="card-cover">
+                        <img :src="item.cover_url || 'https://via.placeholder.com/320x180/eef2ff/8aa9ff?text=Magic'" loading="lazy">
+                        <div style="position:absolute; bottom:8px; right:8px; background:rgba(255,255,255,0.9); color:#ff758c; padding:2px 8px; font-size:12px; border-radius:10px; font-weight:bold; box-shadow:0 2px 5px rgba(0,0,0,0.1)">HD</div>
+                    </div>
+                    <div class="card-info">
+                        <div class="card-title">{{ item.title }}</div>
+                        <div class="card-meta">
+                            <span style="display:flex;align-items:center"><el-icon style="margin-right:4px"><Avatar /></el-icon> 魔法师{{ item.author_id }}</span>
+                            <span>{{ formatDate(item.created_at) }}</span>
+                        </div>
+                    </div>
+                </div>
+                <el-empty v-if="!loading && list.length === 0" description="天空空荡荡的，快去施法吧！" :image-size="200"></el-empty>
+            </div>
+        `,
+        setup() {
+            const list = ref([]);
+            const loading = ref(false);
+            const router = useRouter();
+
+            const fetchFeed = async () => {
+                loading.value = true;
+                try {
+                    const res = await axios.get(`${API_BASE}/feed`);
+                    if (res.data.status_code === 0) list.value = res.data.video_list || [];
+                } catch (e) { }
+                loading.value = false;
+            };
+
+            const goDetail = (video) => router.push({ name: 'video', params: { id: video.id }, query: { ...video } });
+            const formatDate = (str) => { const d = new Date(str); return d.toLocaleDateString(); };
+
+            onMounted(fetchFeed);
+            return { list, loading, goDetail, formatDate };
+        }
+    };
+
+    // ================= VideoDetail 组件 =================
+    const VideoDetail = {
+        template: `
+            <div class="detail-layout">
+                <div class="left-column">
+                    <div class="video-player-box">
+                        <video :src="videoInfo.play_url" controls autoplay style="width:100%; height:100%"></video>
+                    </div>
+                    <div class="video-header">
+                        <h1>{{ videoInfo.title }}</h1>
+                        <div class="video-data">
+                            <span><el-icon style="vertical-align:middle"><Calendar /></el-icon> 召唤于 {{ formatDate(videoInfo.created_at) }}</span>
+                            <div style="flex:1"></div>
+                            <div class="action-btn" :class="{ active: isLiked }" @click="toggleLike">
+                                <el-icon><Star-Filled /></el-icon><span style="margin-left:5px">{{ isLiked ? '已契约' : '签订契约' }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-panel comment-area">
+                        <h3>魔法留言板 ({{ comments.length }})</h3>
+                        <div class="comment-send" style="display:flex; gap:15px; margin:20px 0;">
+                            <div class="user-avatar"></div>
+                            <div class="comment-input-box" style="flex:1">
+                                <el-input v-model="commentText" type="textarea" :rows="2" placeholder="写下你的咒语..." resize="none"></el-input>
+                                <div style="text-align:right; margin-top:10px;">
+                                    <el-button type="primary" color="#8aa9ff" @click="postComment" :loading="sending">发送咒语</el-button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="comment-list">
+                            <div class="comment-item" v-for="c in comments" :key="c.id" style="display:flex; gap:15px; margin-bottom:20px;">
+                                <div class="user-avatar"></div>
+                                <div class="comment-content">
+                                    <div class="user-name">魔法学徒{{ c.user_id }}</div>
+                                    <div class="comment-text">{{ c.content }}</div>
+                                    <div class="comment-time">{{ formatDate(c.create_date) }}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="right-column"></div>
+            </div>
+        `,
+        setup() {
+            const route = useRoute();
+            const videoInfo = reactive(route.query);
+            const isLiked = ref(false);
+            const commentText = ref('');
+            const comments = ref([]);
+            const sending = ref(false);
+
+            const formatDate = (str) => str ? new Date(str).toLocaleString() : '';
+            const fetchComments = async () => {
+                try {
+                    const res = await axios.get(`${API_BASE}/comment/list?video_id=${videoInfo.id}`);
+                    if (res.data.status_code === 0) comments.value = res.data.comment_list || [];
+                } catch (e) { }
+            };
+            const toggleLike = async () => {
+                const action = isLiked.value ? 2 : 1;
+                try {
+                    await axios.post(`${API_BASE}/favorite/action?video_id=${videoInfo.id}&action_type=${action}`);
+                    isLiked.value = !isLiked.value;
+                    ElementPlus.ElMessage.success(isLiked.value ? '契约签订成功！' : '契约已解除');
+                } catch (e) { }
+            };
+            const postComment = async () => {
+                if (!commentText.value.trim()) return;
+                sending.value = true;
+                try {
+                    await axios.post(`${API_BASE}/comment/action?video_id=${videoInfo.id}&action_type=1&comment_text=${encodeURIComponent(commentText.value)}`);
+                    ElementPlus.ElMessage.success('咒语发送成功！');
+                    commentText.value = '';
+                    fetchComments();
+                } catch (e) { }
+                sending.value = false;
+            };
+            onMounted(fetchComments);
+            return { videoInfo, isLiked, commentText, comments, sending, toggleLike, postComment, formatDate };
+        }
+    };
+
+    // ================= Upload 组件 =================
+    // ================= Upload 组件 (新增封面上传) =================
+    // ================= Upload 组件 (优化版：16:9封面 + 退出按钮) =================
+    const Upload = {
+        template: `
+            <div class="upload-container">
+                <!-- 1. 右上角大大的退出按钮 -->
+                <el-icon class="close-icon" @click="goBack" title="关闭"><CloseBold /></el-icon>
+
+                <div class="upload-title">发布新作品</div>
+                
+                <el-form label-position="top">
+                    <!-- 标题输入 -->
+                    <el-form-item label="影像名称">
+                        <el-input v-model="title" placeholder="为这段记忆命名..." size="large"></el-input>
+                    </el-form-item>
+
+                    <!-- 封面上传 (核心修改：强制 16:9 比例) -->
+                    <el-form-item label="魔法封面 (16:9 预览)">
+                        <div class="cover-upload-box" 
+                             onclick="document.getElementById('coverInp').click()"
+                             :style="{ backgroundImage: coverPreview ? 'url(' + coverPreview + ')' : 'none' }">
+                            
+                            <!-- 如果没选图，显示提示 -->
+                            <div v-if="!coverPreview" class="upload-placeholder">
+                                <el-icon size="40" style="color:#8aa9ff; margin-bottom:10px"><Picture-Filled /></el-icon>
+                                <div>点击选择封面图</div>
+                                <div style="font-size:12px; opacity:0.7">建议比例 16:9</div>
+                            </div>
+
+                            <!-- 遮罩层 (选图后悬停显示) -->
+                            <div class="upload-mask">
+                                <el-icon><Edit /></el-icon> 更换封面
+                            </div>
+                        </div>
+                        <input id="coverInp" type="file" @change="onCoverChange" accept="image/*" style="display:none" />
+                    </el-form-item>
+
+                    <!-- 视频文件 -->
+                    <el-form-item label="影像文件">
+                        <div class="file-upload-bar" onclick="document.getElementById('fileInp').click()">
+                            <el-icon size="20" style="margin-right:10px; color:#ff758c"><Video-Camera-Filled /></el-icon>
+                            <span v-if="!file" style="color:#666">点击选择视频文件...</span>
+                            <span v-else style="color:#333; font-weight:bold">{{ file.name }}</span>
+                            <el-tag v-if="file" size="small" type="success" style="margin-left:auto">已就绪</el-tag>
+                        </div>
+                        <input id="fileInp" type="file" @change="onFileChange" accept="video/*" style="display:none" />
+                    </el-form-item>
+
+                    <!-- 底部按钮组 -->
+                    <div style="display:flex; gap:20px; margin-top:40px;">
+                        <!-- 2. 底部明显的取消按钮 -->
+                        <el-button size="large" style="flex:1; background:#fff; border:1px solid #ddd; color:#666;" @click="goBack">
+                            放弃并退出
+                        </el-button>
+                        
+                        <el-button size="large" color="#a18cd1" style="flex:2; font-weight:bold; color:#fff; background:linear-gradient(to right, #a18cd1, #fbc2eb); border:none" @click="doUpload" :loading="uploading">
+                            {{ uploading ? '正在施法转码中...' : '确认发布' }}
+                        </el-button>
+                    </div>
+                </el-form>
+            </div>
+        `,
+        // 下面这段 CSS 是专门给 Upload 组件用的，写在这里不影响全局
+        styles: `
+            <style>
+            /* 强制封面框为 16:9 比例，模仿视频卡片 */
+            .cover-upload-box {
+                width: 100%;
+                aspect-ratio: 16 / 9; /* 关键：锁定比例 */
+                border-radius: 12px;
+                border: 2px dashed rgba(138, 169, 255, 0.5);
+                background-color: rgba(255,255,255,0.3);
+                background-size: cover;
+                background-position: center;
+                cursor: pointer;
+                position: relative;
+                overflow: hidden;
+                display: flex; align-items: center; justify-content: center;
+                transition: all 0.3s;
+            }
+            .cover-upload-box:hover { border-color: #ff758c; }
+            
+            .upload-placeholder { text-align: center; color: #666; }
+            
+            /* 选图后的遮罩效果 */
+            .upload-mask {
+                position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5); color: #fff;
+                display: flex; align-items: center; justify-content: center; gap: 8px;
+                opacity: 0; transition: opacity 0.3s; font-weight: bold;
+            }
+            .cover-upload-box:hover .upload-mask { opacity: 1; }
+
+            /* 视频文件选择条 */
+            .file-upload-bar {
+                width: 100%; height: 50px;
+                border: 1px solid rgba(255,255,255,0.6);
+                border-radius: 8px;
+                background: rgba(255,255,255,0.4);
+                display: flex; align-items: center; padding: 0 15px;
+                cursor: pointer; transition: all 0.2s;
+            }
+            .file-upload-bar:hover { background: rgba(255,255,255,0.8); border-color: #a18cd1; }
+
+            /* 右上角关闭按钮 */
+            .close-icon {
+                position: absolute; top: 25px; right: 25px;
+                font-size: 28px; color: #888; cursor: pointer;
+                background: rgba(255,255,255,0.5); border-radius: 50%; padding: 5px;
+                transition: all 0.3s;
+            }
+            .close-icon:hover { color: #ff758c; background: #fff; transform: rotate(90deg); }
+            </style>
+        `,
+        setup() {
+            const title = ref('');
+            const file = ref(null);
+            const coverFile = ref(null);
+            const coverPreview = ref(null);
+            const uploading = ref(false);
+            const router = useRouter();
+
+            // 退出函数
+            const goBack = () => router.push('/');
+
+            const onFileChange = (e) => file.value = e.target.files[0];
+            const onCoverChange = (e) => {
+                const f = e.target.files[0];
+                if (f) {
+                    coverFile.value = f;
+                    coverPreview.value = URL.createObjectURL(f);
+                }
+            };
+
+            const doUpload = async () => {
+                if (!title.value || !file.value) return ElementPlus.ElMessage.warning('咒语不完整！请填写标题并选择视频');
+                uploading.value = true;
+                const fd = new FormData();
+                fd.append('title', title.value);
+                fd.append('data', file.value);
+                if (coverFile.value) fd.append('cover', coverFile.value);
+
+                try {
+                    await axios.post(`${API_BASE}/publish/action`, fd);
+                    ElementPlus.ElMessage.success('发布成功！魔法回路已连接。');
+                    setTimeout(() => router.push('/'), 1000);
+                } catch (e) { 
+                    ElementPlus.ElMessage.error('施法失败'); 
+                }
+                uploading.value = false;
+            };
+
+            // 动态注入样式 (为了不污染全局，小技巧)
+            onMounted(() => {
+                if (!document.getElementById('upload-styles')) {
+                    const style = document.createElement('div');
+                    style.id = 'upload-styles';
+                    style.innerHTML = Upload.styles;
+                    document.body.appendChild(style);
+                }
+            });
+
+            return { title, doUpload, onFileChange, onCoverChange, uploading, goBack, file, coverPreview };
+        }
+    };
+
+    const routes = [{ path: '/', component: Home }, { path: '/upload', component: Upload }, { path: '/video/:id', name: 'video', component: VideoDetail }];
+    const router = createRouter({ history: createWebHashHistory(), routes, scrollBehavior() { return { top: 0 } } });
+
+    const app = createApp({
+        setup() {
+            const router = useRouter();
+            const triggerBgInput = () => document.getElementById('bgInput').click();
+            const changeBackground = (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => document.body.style.backgroundImage = `url('${e.target.result}')`;
+                    reader.readAsDataURL(file);
+                }
+            };
+            return { goHome: () => router.push('/'), goUpload: () => router.push('/upload'), triggerBgInput, changeBackground };
+        }
+    });
+
+    for (const [key, component] of Object.entries(ElementPlusIconsVue)) { app.component(key, component); }
+    app.use(router);
+    app.use(ElementPlus);
+    app.mount('#app');
+</script>
+</body>
+</html>

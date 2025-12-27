@@ -2,62 +2,75 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"net/http"
 	"path/filepath"
+	"tiktok-server/config"
 	"time"
-
-	"tiktok-server/config" // 👈 引用刚才写的 config 包
-	"tiktok-server/models" // 👈 引用刚才写的 models 包
 
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
+	"github.com/streadway/amqp"
 )
 
-// PublishAction 处理视频上传
+// 修改消息结构体，增加 CoverURL 字段
+type TranscodeMessage struct {
+	FileName string `json:"file_name"`
+	Title    string `json:"title"`
+	AuthorID int64  `json:"author_id"`
+	CoverURL string `json:"cover_url"` // 新增：携带封面地址
+}
+
 func PublishAction(c *gin.Context) {
-	// 1. 获取文件
+	// 1. 获取视频文件
 	file, header, err := c.Request.FormFile("data")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "文件上传失败"})
+		c.JSON(400, gin.H{"error": "视频文件获取失败"})
 		return
 	}
 
-	// 2. 生成文件名
+	// 2. 上传视频到 MinIO
 	ext := filepath.Ext(header.Filename)
-	filename := fmt.Sprintf("%d_%s%s", time.Now().Unix(), "video", ext)
-
-	// 3. 上传 MinIO (使用 config.MinioClient)
-	ctx := context.Background()
-	info, err := config.MinioClient.PutObject(ctx, config.MinioBucket, filename, file, header.Size, minio.PutObjectOptions{
-		ContentType: "video/mp4",
-	})
+	rawFilename := fmt.Sprintf("raw/%d_%s", time.Now().Unix(), "video"+ext)
+	_, err = config.MinioClient.PutObject(context.Background(), config.MinioBucket, rawFilename, file, header.Size, minio.PutObjectOptions{})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "MinIO 上传失败: " + err.Error()})
+		c.JSON(500, gin.H{"error": "MinIO 视频上传失败"})
 		return
 	}
 
-	// 4. 拼接 URL
-	playURL := fmt.Sprintf("http://%s/%s/%s", config.MinioEndpoint, config.MinioBucket, filename)
-	coverURL := "http://localhost:9000/images/default.jpg"
+	// 3. 处理封面 (关键修改)
+	coverURL := "" // 默认空
+	coverFile, coverHeader, err := c.Request.FormFile("cover")
 
-	// 5. 存入数据库 (使用 config.DB)
-	newVideo := models.Video{
-		AuthorID: 1,
-		PlayURL:  playURL,
-		CoverURL: coverURL,
+	// 如果用户上传了封面
+	if err == nil {
+		coverName := fmt.Sprintf("covers/%d_%s", time.Now().Unix(), coverHeader.Filename)
+		_, err = config.MinioClient.PutObject(context.Background(), config.MinioBucket, coverName, coverFile, coverHeader.Size, minio.PutObjectOptions{})
+		if err == nil {
+			// 生成封面 URL (使用 Linux IP)
+			coverURL = fmt.Sprintf("http://%s/%s/%s", config.MinioEndpoint, config.MinioBucket, coverName)
+		}
+	} else {
+		// 如果没传封面，给一个默认的魔法少女图
+		coverURL = "https://via.placeholder.com/320x180/ff9a9e/ffffff?text=Magic+Girl"
+	}
+
+	// 4. 发消息给 MQ (带上封面URL)
+	msg := TranscodeMessage{
+		FileName: rawFilename,
 		Title:    c.PostForm("title"),
-		Status:   0,
+		AuthorID: 1,
+		CoverURL: coverURL, // 传给 Worker
 	}
+	body, _ := json.Marshal(msg)
 
-	if err := config.DB.Create(&newVideo).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "数据库保存失败: " + err.Error()})
-		return
-	}
+	config.MQChannel.Publish("", "transcode_queue", false, false, amqp.Publishing{
+		ContentType: "application/json",
+		Body:        body,
+	})
 
-	c.JSON(http.StatusOK, gin.H{
-		"message":   "上传成功！",
-		"video_url": playURL,
-		"size":      info.Size,
+	c.JSON(200, gin.H{
+		"status_code": 0,
+		"status_msg":  "上传成功",
 	})
 }
