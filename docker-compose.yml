@@ -11,7 +11,7 @@ services:
       MYSQL_DATABASE: tiktok_db
       TZ: Asia/Shanghai
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - ./mysql_data:/var/lib/mysql
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -30,7 +30,7 @@ services:
 
   # MinIO 对象存储
   minio:
-    image: quay.io/minio/minio
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     container_name: tiktok_minio
     restart: always
     ports:
