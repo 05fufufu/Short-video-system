@@ -8,9 +8,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
+
 	"tiktok-server/config"
 	"tiktok-server/models"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/minio/minio-go/v7"
@@ -18,7 +19,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// 必须定义这个结构体，供两个函数使用
 type TranscodeMessage struct {
 	FileName string `json:"file_name"`
 	Title    string `json:"title"`
@@ -26,17 +26,18 @@ type TranscodeMessage struct {
 	CoverURL string `json:"cover_url"`
 }
 
-// === 1. 投稿功能 (确保这个函数还在!) ===
 func PublishAction(c *gin.Context) {
+	// 1. 获取视频文件
 	file, header, err := c.Request.FormFile("data")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "文件获取失败"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "视频文件获取失败"})
 		return
 	}
 
 	userIDStr := c.PostForm("user_id")
 	userID, _ := strconv.ParseInt(userIDStr, 10, 64)
 
+	// 2. 上传原始视频
 	ext := filepath.Ext(header.Filename)
 	rawFilename := fmt.Sprintf("raw/%d_%s", time.Now().Unix(), "video"+ext)
 	_, err = config.MinioClient.PutObject(context.Background(), config.MinioBucket, rawFilename, file, header.Size, minio.PutObjectOptions{})
@@ -45,19 +46,23 @@ func PublishAction(c *gin.Context) {
 		return
 	}
 
+	// 3. 处理封面 (修复作用域和变量定义)
 	var coverURL string
 	coverFile, coverHeader, err := c.Request.FormFile("cover")
 	if err == nil {
 		coverName := fmt.Sprintf("covers/%d_%s", time.Now().Unix(), coverHeader.Filename)
 		_, err = config.MinioClient.PutObject(context.Background(), config.MinioBucket, coverName, coverFile, coverHeader.Size, minio.PutObjectOptions{})
 		if err == nil {
-			coverURL = fmt.Sprintf("http://%s/%s/%s", config.MinioEndpoint, config.MinioBucket, coverName)
+			// 🌟 重点：使用代理路径 /video_file/ 和公网域名 MinioPublicServer
+			coverURL = fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, coverName)
 		}
 	}
+
 	if coverURL == "" {
-		coverURL = "https://via.placeholder.com/320x180/ff758c/ffffff?text=Magic+Girl"
+		coverURL = "https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png"
 	}
 
+	// 4. 发送 MQ
 	msg := TranscodeMessage{
 		FileName: rawFilename,
 		Title:    c.PostForm("title"),
@@ -74,6 +79,7 @@ func PublishAction(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status_code": 0, "status_msg": "上传成功"})
 }
 
+// DeleteAction 保持不变... (如果已写好)
 // === 2. 删除功能 (刚才新加的) ===
 func DeleteAction(c *gin.Context) {
 	videoID := c.Query("video_id")

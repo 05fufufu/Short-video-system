@@ -119,7 +119,6 @@ func GetUserInfo(c *gin.Context) {
 
 // UpdateAvatar 更新用户头像
 func UpdateAvatar(c *gin.Context) {
-	// 1. 获取参数
 	userIDStr := c.PostForm("user_id")
 	userID, _ := strconv.ParseInt(userIDStr, 10, 64)
 
@@ -129,32 +128,27 @@ func UpdateAvatar(c *gin.Context) {
 		return
 	}
 
-	// 2. 上传到 MinIO
 	ctx := context.Background()
 	ext := filepath.Ext(header.Filename)
 	objectName := fmt.Sprintf("avatars/%d_%s%s", userID, time.Now().Format("20060102150405"), ext)
 
 	_, err = config.MinioClient.PutObject(ctx, config.MinioBucket, objectName, file, header.Size, minio.PutObjectOptions{
-		ContentType: "image/jpeg", // 简单设为jpeg，实际可动态获取
+		ContentType: "image/jpeg",
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status_code": 1, "status_msg": "存储魔法失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"status_code": 1, "status_msg": "存储失败"})
 		return
 	}
 
-	// 3. 生成新头像地址 (指向 Linux IP)
-	avatarURL := fmt.Sprintf("http://%s/%s/%s", config.MinioEndpoint, config.MinioBucket, objectName)
+	// 🌟 重点：修改这里，使用公网代理地址
+	avatarURL := fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, objectName)
 
-	// 4. 更新对应的分片库
 	db := config.GetUserDB(userID)
-	if err := db.Table("users").Where("id = ?", userID).Update("avatar", avatarURL).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status_code": 1, "status_msg": "契约更新失败"})
-		return
-	}
+	db.Table("users").Where("id = ?", userID).Update("avatar", avatarURL)
 
 	c.JSON(http.StatusOK, gin.H{
 		"status_code": 0,
-		"status_msg":  "头像更新成功",
+		"status_msg":  "更新成功",
 		"avatar_url":  avatarURL,
 	})
 }

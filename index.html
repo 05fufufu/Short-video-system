@@ -38,7 +38,20 @@
         .card-cover { width: 100%; aspect-ratio: 16 / 9; background: #eee; overflow: hidden; }
         .card-cover img { width: 100%; height: 100%; object-fit: cover; }
         .card-info { padding: 14px; }
+     /* 强制空状态提示文字显示为深色且加粗 */
+.el-empty__description p {
+    color: var(--text-title) !important;
+    font-weight: bold !important;
+    font-size: 18px !important;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.8); /* 增加白色描边防止看不清 */
+}
 
+.empty-wrap {
+    padding-top: 100px;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+}
         /* === 详情页垂直布局 === */
         .detail-layout { max-width: 1000px; margin: 0 auto; }
         .video-player-box { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.3); }
@@ -119,26 +132,56 @@
     const { createApp, ref, reactive, onMounted } = Vue;
     const { createRouter, createWebHashHistory, useRouter, useRoute } = VueRouter;
     //const API_BASE = 'http://localhost:8080';
-    const API_BASE = 'http://172.20.10.4:8080';
+    //const API_BASE = 'http://172.20.10.4:8080';
+    const API_BASE = 'http://1a253b7.r17.cpolar.top';
     const Home = {
         template: `
-            <div class="video-grid" v-loading="loading">
-                <div class="video-card" v-for="item in list" :key="item.id" @click="goDetail(item)">
-                    <div class="card-cover"><img :src="item.cover_url || 'https://via.placeholder.com/320x180/eef2ff/8aa9ff?text=Magic'"></div>
-                    <div class="card-info">
-                        <div class="card-title" style="font-weight:bold">{{ item.title }}</div>
-                        <div style="font-size:12px; color:#999; margin-top:10px; display:flex; justify-content:space-between">
-                            <span>魔法使 ID: {{ item.author_id }}</span>
-                            <span>{{ new Date(item.created_at).toLocaleDateString() }}</span>
+            <div v-loading="loading">
+                <!-- 只有有数据时才显示网格 -->
+                <div v-if="list && list.length > 0" class="video-grid">
+                    <div class="video-card" v-for="item in list" :key="item.id" @click="goDetail(item)">
+                        <div class="card-cover">
+                            <img :src="item.cover_url || 'https://via.placeholder.com/320x180/eef2ff/8aa9ff?text=Magic'">
+                            <div style="position:absolute; bottom:8px; right:8px; background:rgba(255,255,255,0.9); color:#ff758c; padding:2px 8px; font-size:12px; border-radius:10px; font-weight:bold;">HD</div>
+                        </div>
+                        <div class="card-info">
+                            <div class="card-title">{{ item.title }}</div>
+                            <div style="font-size:12px; color:#888; display:flex; justify-content:space-between;">
+                                <span>魔法使 ID: {{ item.author_id }}</span>
+                                <span>{{ formatDate(item.created_at) }}</span>
+                            </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- 🌟 核心：改进后的空状态显示 -->
+                <div v-else-if="!loading" class="empty-wrap">
+                    <el-empty description="魔力暂时枯竭，快去投稿吧" :image-size="250"></el-empty>
                 </div>
             </div>
         `,
         setup() {
-            const list = ref([]); const loading = ref(false); const router = useRouter();
-            const fetch = async () => { loading.value = true; const res = await axios.get(API_BASE+'/feed'); list.value = res.data.video_list || []; loading.value = false; };
-            onMounted(fetch); return { list, loading, goDetail: (v) => router.push({ name: 'video', params: { id: v.id }, query: v }) };
+            const list = ref([]); 
+            const loading = ref(false); 
+            const router = useRouter();
+
+            const fetch = async () => { 
+                loading.value = true; 
+                try { 
+                    const res = await axios.get(API_BASE+'/feed'); 
+                    // 🌟 核心：这里一定要做 || [] 的判断，因为后端查不到时可能返回 null
+                    list.value = res.data.video_list || []; 
+                } catch(e){
+                    console.error("加载失败", e);
+                } finally { 
+                    loading.value = false; 
+                } 
+            };
+
+            const formatDate = (s) => new Date(s).toLocaleDateString();
+            onMounted(fetch); 
+            
+            return { list, loading, formatDate, goDetail: (v) => router.push({ name: 'video', params: { id: v.id }, query: v }) };
         }
     };
 

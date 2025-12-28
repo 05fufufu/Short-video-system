@@ -62,7 +62,7 @@ func processVideo(msg TranscodeMessage) {
 	config.MinioClient.FPutObject(ctx, config.MinioBucket, newObjName, localOut, minio.PutObjectOptions{ContentType: "video/mp4"})
 
 	// 4. 入库
-	playURL := fmt.Sprintf("http://%s/%s/%s", config.MinioEndpoint, config.MinioBucket, newObjName)
+	playURL := fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, newObjName)
 
 	video := models.Video{
 		AuthorID: msg.AuthorID,
