@@ -118,8 +118,8 @@
 <script>
     const { createApp, ref, reactive, onMounted } = Vue;
     const { createRouter, createWebHashHistory, useRouter, useRoute } = VueRouter;
-    const API_BASE = 'http://localhost:8080';
-
+    //const API_BASE = 'http://localhost:8080';
+    const API_BASE = 'http://172.20.10.4:8080';
     const Home = {
         template: `
             <div class="video-grid" v-loading="loading">
