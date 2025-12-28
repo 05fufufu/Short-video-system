@@ -44,6 +44,9 @@ func InitRouter() *gin.Engine {
 	// 注册一个代理接口，专门负责把外网请求转发给内网 MinIO
 	r.GET("/video_file/*filepath", handlers.ProxyVideo)
 
+	// 笔记模块
+	r.POST("/note/publish", handlers.PublishNote)
+
 	// 互动模块
 	r.POST("/favorite/action", handlers.FavoriteAction)
 	r.POST("/comment/action", handlers.CommentAction)

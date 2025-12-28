@@ -94,6 +94,7 @@
             <template v-if="!isLoggedIn"><el-button round @click="showAuth = true">登录 / 注册</el-button></template>
             <template v-else>
                 <el-button round color="#ff758c" style="color:white; font-weight:bold;" @click="goUpload"><el-icon><Camera-Filled /></el-icon> 施法投稿</el-button>
+                <el-button round color="#8aa9ff" style="color:white; font-weight:bold; margin-left:10px" @click="goNoteUpload"><el-icon><Edit-Pen /></el-icon> 发布笔记</el-button>
                 <el-dropdown @command="hCmd" style="margin-left:15px">
                     <el-avatar :size="40" style="border:2px solid var(--magic-pink)" :src="myInfo.avatar"></el-avatar>
                     <template #dropdown><el-dropdown-menu>
@@ -181,7 +182,68 @@
             const formatDate = (s) => new Date(s).toLocaleDateString();
             onMounted(fetch); 
             
-            return { list, loading, formatDate, goDetail: (v) => router.push({ name: 'video', params: { id: v.id }, query: v }) };
+            return { 
+                list, loading, formatDate, 
+                goDetail: (v) => {
+                    if (v.type === 'note') {
+                        router.push({ name: 'note', params: { id: v.id }, query: v });
+                    } else {
+                        router.push({ name: 'video', params: { id: v.id }, query: v });
+                    }
+                }
+            };
+        }
+    };
+
+    // ================= NoteDetail 笔记详情页 =================
+    const NoteDetail = {
+        template: `
+            <div class="detail-layout">
+                <div class="glass-panel" style="padding:0; overflow:hidden; margin-bottom:20px; background:rgba(0,0,0,0.05);">
+                    <el-carousel height="500px" v-if="images.length > 0" :interval="5000" arrow="always">
+                        <el-carousel-item v-for="img in images" :key="img">
+                            <img :src="img" style="width:100%; height:100%; object-fit:contain; backdrop-filter:blur(10px);">
+                        </el-carousel-item>
+                    </el-carousel>
+                    <div v-else style="height:200px; display:flex; align-items:center; justify-content:center; color:#888;">无图片</div>
+                </div>
+                
+                <div class="video-header">
+                    <h1 class="video-title-big"><el-tag type="success" style="margin-right:10px; vertical-align:middle">笔记</el-tag>{{ info.title }}</h1>
+                    
+                    <div class="uploader-card">
+                        <el-avatar :size="60" class="uploader-avatar" :src="upInfo.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'"></el-avatar>
+                        <div class="uploader-detail" style="margin-left:15px">
+                            <div class="uploader-name">{{ upInfo.nickname || '神秘魔法使' }}</div>
+                            <div class="uploader-id">
+                                <span>发布于: {{ formatDate(info.created_at) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel">
+                    <div style="white-space: pre-wrap; font-size: 18px; line-height: 1.8; color:#333;">{{ info.content }}</div>
+                </div>
+            </div>
+        `,
+        setup() {
+            const route = useRoute();
+            const info = reactive(route.query);
+            const images = ref([]);
+            const upInfo = ref({});
+
+            try {
+                images.value = JSON.parse(info.images || '[]');
+            } catch(e) { console.error(e); }
+
+            onMounted(() => {
+                axios.get(API_BASE+'/user/info?user_id='+info.author_id).then(res => {
+                    if(res.data.status_code === 0) upInfo.value = res.data.user;
+                });
+            });
+
+            return { info, images, upInfo, formatDate: (s) => s ? new Date(s).toLocaleString() : '' };
         }
     };
 
@@ -396,6 +458,66 @@
         }
     };
 
+    const UploadNote = {
+        template: `
+            <div class="upload-container">
+                <el-icon class="close-icon" @click="goHome"><CloseBold /></el-icon>
+                <div style="font-family:'Ma Shan Zheng'; text-align:center; font-size:32px; margin-bottom:30px">发布魔法笔记</div>
+                <el-form label-position="top">
+                    <el-form-item label="笔记标题"><el-input v-model="title" size="large"></el-input></el-form-item>
+                    <el-form-item label="笔记内容"><el-input v-model="content" type="textarea" :rows="4"></el-input></el-form-item>
+                    <el-form-item label="魔法图片">
+                        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <div v-for="(img, idx) in previews" :key="idx" style="width:100px; height:100px; border-radius:8px; overflow:hidden; position:relative;">
+                                <img :src="img" style="width:100%; height:100%; object-fit:cover;">
+                            </div>
+                            <div class="cover-upload-box" style="width:100px; height:100px; aspect-ratio:1;" @click="ck">
+                                <el-icon size="24"><Plus /></el-icon>
+                            </div>
+                        </div>
+                        <input id="imgsInp" type="file" @change="onImgsChg" style="display:none" accept="image/*" multiple>
+                    </el-form-item>
+                    <div style="display:flex; gap:20px; margin-top:30px;">
+                        <el-button size="large" style="flex:1" @click="goHome">放弃</el-button>
+                        <el-button type="primary" size="large" style="flex:2; background:var(--magic-blue); border:none; font-weight:bold; color:white;" @click="doUp" :loading="ing">发布笔记</el-button>
+                    </div>
+                </el-form>
+            </div>
+        `,
+        setup() {
+            const title = ref(''); const content = ref(''); const files = ref([]); const previews = ref([]); const ing = ref(false); const router = useRouter();
+            const onImgsChg = (e) => { 
+                const fs = Array.from(e.target.files);
+                files.value = [...files.value, ...fs];
+                fs.forEach(f => previews.value.push(URL.createObjectURL(f)));
+            };
+            const doUp = async () => {
+                if(!title.value || !content.value) return ElementPlus.ElMessage.warning('标题和内容不能为空');
+                ing.value = true; 
+                const fd = new FormData(); 
+                fd.append('title', title.value); 
+                fd.append('content', content.value);
+                fd.append('user_id', localStorage.getItem('user_id')); 
+                files.value.forEach(f => fd.append('images', f));
+                
+                try {
+                    const res = await axios.post(API_BASE+'/note/publish', fd);
+                    if(res.data.status_code === 0) {
+                        ElementPlus.ElMessage.success('笔记发布成功！');
+                        router.push('/');
+                    } else {
+                        ElementPlus.ElMessage.error(res.data.status_msg);
+                    }
+                } catch(e) {
+                    ElementPlus.ElMessage.error('发布失败');
+                } finally {
+                    ing.value = false;
+                }
+            };
+            return { title, content, previews, ing, goHome: () => router.push('/'), ck: () => document.getElementById('imgsInp').click(), onImgsChg, doUp };
+        }
+    };
+
     const app = createApp({
         setup() {
             const router = useRouter(); const showAuth = ref(false); const authLoading = ref(false);
@@ -422,11 +544,17 @@
             };
 
             onMounted(fetchMy);
-            return { showAuth, authLoading, isLoggedIn, authF, doA, myInfo, uploadAvatar, tBg: () => document.getElementById('bgInput').click(), cBg: (e) => {const f=e.target.files[0]; if(f){const r=new FileReader(); r.onload=(ev)=>document.body.style.backgroundImage="url('"+ev.target.result+"')"; r.readAsDataURL(f);}}, goHome: () => router.push('/'), goUpload: () => router.push('/upload'), hCmd: (c) => {if(c==='logout'){localStorage.clear();location.reload();} else if(c==='changeAvatar'){document.getElementById('avatarInput').click();}} };
+            return { showAuth, authLoading, isLoggedIn, authF, doA, myInfo, uploadAvatar, tBg: () => document.getElementById('bgInput').click(), cBg: (e) => {const f=e.target.files[0]; if(f){const r=new FileReader(); r.onload=(ev)=>document.body.style.backgroundImage="url('"+ev.target.result+"')"; r.readAsDataURL(f);}}, goHome: () => router.push('/'), goUpload: () => router.push('/upload'), goNoteUpload: () => router.push('/upload_note'), hCmd: (c) => {if(c==='logout'){localStorage.clear();location.reload();} else if(c==='changeAvatar'){document.getElementById('avatarInput').click();}} };
         }
     });
 
-    const routes = [ { path: '/', component: Home }, { path: '/video/:id', name: 'video', component: VideoDetail }, { path: '/upload', component: Upload } ];
+    const routes = [ 
+        { path: '/', component: Home }, 
+        { path: '/video/:id', name: 'video', component: VideoDetail }, 
+        { path: '/note/:id', name: 'note', component: NoteDetail },
+        { path: '/upload', component: Upload }, 
+        { path: '/upload_note', component: UploadNote } 
+    ];
     const router = createRouter({ history: createWebHashHistory(), routes });
     for (const [key, component] of Object.entries(ElementPlusIconsVue)) { app.component(key, component); }
     app.use(router); app.use(ElementPlus); app.mount('#app');
