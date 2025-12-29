@@ -11,8 +11,12 @@ func InitRouter() *gin.Engine {
 
 	// 🌟 核心：跨域中间件（必须放在所有路由之前！）
 	r.Use(func(c *gin.Context) {
-		// 允许所有来源（开发环境最省事的方法）
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := c.Request.Header.Get("Origin")
+		if origin != "" {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		} else {
+			c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		}
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		// 允许的 Header
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With, token")

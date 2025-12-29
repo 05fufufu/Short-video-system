@@ -15,7 +15,7 @@ var (
 
 func InitDB() {
 	// 注意修改为你的 Linux 虚拟机 IP
-	dsnFormat := "root:rootpassword@tcp(172.20.10.2:3307)/%s?charset=utf8mb4&parseTime=True&loc=Local"
+	dsnFormat := "root:rootpassword@tcp(172.20.10.3:3307)/%s?charset=utf8mb4&parseTime=True&loc=Local"
 
 	var err error
 	// 1. 初始化业务主库 (tiktok_db)

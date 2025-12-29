@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"tiktok-server/config"
 	"tiktok-server/service"
 	"time"
@@ -109,6 +110,14 @@ func GetUserInfo(c *gin.Context) {
 	if err := db.Table("users").Where("id = ?", userID).First(&user).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{"status_code": 1, "status_msg": "找不到该魔法使"})
 		return
+	}
+
+	// 动态修复头像 URL
+	if strings.Contains(user.Avatar, "/video_file/") && !strings.Contains(user.Avatar, config.MinioPublicServer) {
+		parts := strings.Split(user.Avatar, "/video_file/")
+		if len(parts) >= 2 {
+			user.Avatar = fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, parts[1])
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

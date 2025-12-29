@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
+	"strings"
 	"tiktok-server/config"
 	"tiktok-server/models"
 	"time"
@@ -23,6 +25,24 @@ type FeedItem struct {
 	PlayURL string `json:"play_url,omitempty"` // 视频专用
 	Content string `json:"content,omitempty"`  // 笔记专用
 	Images  string `json:"images,omitempty"`   // 笔记专用
+}
+
+func fixURL(u string) string {
+	if u == "" {
+		return ""
+	}
+	// 如果是相对路径或已经是公网地址，直接返回
+	if strings.Contains(u, config.MinioPublicServer) {
+		return u
+	}
+	// 替换 localhost 或内网 IP 为公网域名
+	if strings.Contains(u, "/video_file/") {
+		parts := strings.Split(u, "/video_file/")
+		if len(parts) >= 2 {
+			return fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, parts[1])
+		}
+	}
+	return u
 }
 
 func FeedAction(c *gin.Context) {
@@ -51,10 +71,10 @@ func FeedAction(c *gin.Context) {
 			ID:        v.ID,
 			Type:      "video",
 			Title:     v.Title,
-			CoverURL:  v.CoverURL,
+			CoverURL:  fixURL(v.CoverURL),
 			AuthorID:  v.AuthorID,
 			CreatedAt: v.CreatedAt,
-			PlayURL:   v.PlayURL,
+			PlayURL:   fixURL(v.PlayURL),
 		})
 	}
 
