@@ -117,3 +117,50 @@ func FeedAction(c *gin.Context) {
 
 	c.JSON(200, gin.H{"status_code": 0, "video_list": items, "source": "db"})
 }
+
+// SearchAction 搜索接口
+func SearchAction(c *gin.Context) {
+	keyword := c.Query("keyword")
+	var items []FeedItem
+
+	// 1. 搜视频
+	var videos []models.Video
+	config.DB.Where("title LIKE ? AND status = 1", "%"+keyword+"%").Order("created_at desc").Find(&videos)
+
+	// 2. 搜笔记
+	var notes []models.Note
+	config.DB.Where("title LIKE ? OR content LIKE ?", "%"+keyword+"%", "%"+keyword+"%").Order("created_at desc").Find(&notes)
+
+	// 3. 合并
+	for _, v := range videos {
+		items = append(items, FeedItem{
+			ID:        v.ID,
+			Type:      "video",
+			Title:     v.Title,
+			CoverURL:  fixURL(v.CoverURL),
+			AuthorID:  v.AuthorID,
+			CreatedAt: v.CreatedAt,
+			PlayURL:   fixURL(v.PlayURL),
+		})
+	}
+	for _, n := range notes {
+		var imgs []string
+		json.Unmarshal([]byte(n.Images), &imgs)
+		cover := "https://via.placeholder.com/320x180/eef2ff/8aa9ff?text=Note"
+		if len(imgs) > 0 {
+			cover = imgs[0]
+		}
+		items = append(items, FeedItem{
+			ID:        n.ID,
+			Type:      "note",
+			Title:     n.Title,
+			CoverURL:  cover,
+			AuthorID:  n.UserID,
+			CreatedAt: n.CreatedAt,
+			Content:   n.Content,
+			Images:    n.Images,
+		})
+	}
+
+	c.JSON(200, gin.H{"status_code": 0, "video_list": items})
+}

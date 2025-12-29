@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -110,4 +111,56 @@ func DeleteAction(c *gin.Context) {
 
 	config.RDB.Del(config.Ctx, "feed:latest")
 	c.JSON(http.StatusOK, gin.H{"status_code": 0, "status_msg": "已抹除"})
+}
+
+// PublishList 获取用户发布列表
+func PublishList(c *gin.Context) {
+	userID := c.Query("user_id")
+	var items []FeedItem
+
+	// 1. 查视频
+	var videos []models.Video
+	config.DB.Where("author_id = ? AND status = 1", userID).Order("created_at desc").Find(&videos)
+
+	// 2. 查笔记
+	var notes []models.Note
+	config.DB.Where("user_id = ?", userID).Order("created_at desc").Find(&notes)
+
+	// 3. 合并
+	for _, v := range videos {
+		items = append(items, FeedItem{
+			ID:        v.ID,
+			Type:      "video",
+			Title:     v.Title,
+			CoverURL:  fixURL(v.CoverURL),
+			AuthorID:  v.AuthorID,
+			CreatedAt: v.CreatedAt,
+			PlayURL:   fixURL(v.PlayURL),
+		})
+	}
+	for _, n := range notes {
+		var imgs []string
+		json.Unmarshal([]byte(n.Images), &imgs)
+		cover := "https://via.placeholder.com/320x180/eef2ff/8aa9ff?text=Note"
+		if len(imgs) > 0 {
+			cover = imgs[0]
+		}
+		items = append(items, FeedItem{
+			ID:        n.ID,
+			Type:      "note",
+			Title:     n.Title,
+			CoverURL:  cover,
+			AuthorID:  n.UserID,
+			CreatedAt: n.CreatedAt,
+			Content:   n.Content,
+			Images:    n.Images,
+		})
+	}
+
+	// 排序
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].CreatedAt.After(items[j].CreatedAt)
+	})
+
+	c.JSON(200, gin.H{"status_code": 0, "video_list": items})
 }

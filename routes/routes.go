@@ -45,6 +45,7 @@ func InitRouter() *gin.Engine {
 	r.GET("/feed", handlers.FeedAction)
 	r.POST("/publish/action", handlers.PublishAction)
 	r.POST("/publish/delete", handlers.DeleteAction)
+	r.GET("/publish/list", handlers.PublishList)
 	// 注册一个代理接口，专门负责把外网请求转发给内网 MinIO
 	r.GET("/video_file/*filepath", handlers.ProxyVideo)
 
@@ -53,6 +54,7 @@ func InitRouter() *gin.Engine {
 
 	// 互动模块
 	r.POST("/favorite/action", handlers.FavoriteAction)
+	r.GET("/user/likes_received", handlers.ReceivedLikesList)
 	r.POST("/comment/action", handlers.CommentAction)
 	r.GET("/comment/list", handlers.CommentList)
 	// 1. 托管背景图片 (让外网能访问到你本地的 bg.jpg)

@@ -90,6 +90,11 @@
 <div id="app">
     <nav class="navbar">
         <div class="logo" @click="goHome">魔法少女的视频网站</div>
+        <div style="flex:1; max-width:400px; margin:0 20px;">
+            <el-input v-model="searchKw" placeholder="搜索魔法影像..." @keyup.enter="doSearch">
+                <template #append><el-button icon="Search" @click="doSearch"></el-button></template>
+            </el-input>
+        </div>
         <div class="nav-right">
             <template v-if="!isLoggedIn"><el-button round @click="showAuth = true">登录 / 注册</el-button></template>
             <template v-else>
@@ -98,7 +103,7 @@
                 <el-dropdown @command="hCmd" style="margin-left:15px">
                     <el-avatar :size="40" style="border:2px solid var(--magic-pink)" :src="myInfo.avatar"></el-avatar>
                     <template #dropdown><el-dropdown-menu>
-                        <el-dropdown-item disabled>你好，{{myInfo.nickname}}</el-dropdown-item>
+                        <el-dropdown-item command="goProfile" icon="User">个人主页</el-dropdown-item>
                         <el-dropdown-item command="changeAvatar" icon="Picture">更换魔法头像</el-dropdown-item>
                         <el-dropdown-item command="logout" divided icon="Close">注销契约</el-dropdown-item>
                     </el-dropdown-menu></template>
@@ -128,9 +133,10 @@
 <script src="https://unpkg.com/element-plus"></script>
 <script src="https://unpkg.com/@element-plus/icons-vue"></script>
 <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script src="https://unpkg.com/hls.js/dist/hls.min.js"></script>
 
 <script>
-    const { createApp, ref, reactive, onMounted } = Vue;
+    const { createApp, ref, reactive, onMounted, watch } = Vue;
     const { createRouter, createWebHashHistory, useRouter, useRoute } = VueRouter;
     //const API_BASE = 'http://localhost:8080';
     //const API_BASE = 'http://172.20.10.4:8080';
@@ -165,12 +171,16 @@
             const list = ref([]); 
             const loading = ref(false); 
             const router = useRouter();
+            const route = useRoute();
 
             const fetch = async () => { 
                 loading.value = true; 
                 try { 
-                    const res = await axios.get(API_BASE+'/feed'); 
-                    // 🌟 核心：这里一定要做 || [] 的判断，因为后端查不到时可能返回 null
+                    let url = API_BASE+'/feed';
+                    if (route.query.keyword) {
+                        url = API_BASE+'/search?keyword=' + route.query.keyword;
+                    }
+                    const res = await axios.get(url); 
                     list.value = res.data.video_list || []; 
                 } catch(e){
                     console.error("加载失败", e);
@@ -180,7 +190,19 @@
             };
 
             const formatDate = (s) => new Date(s).toLocaleDateString();
+            
+            // 监听路由变化，实现搜索
+            watch(() => route.query.keyword, fetch);
             onMounted(fetch); 
+            
+            // 无限滚动逻辑
+            const handleScroll = () => {
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
+                    // 这里可以添加加载更多逻辑
+                    // 目前后端接口暂未支持分页参数，后续可扩展
+                }
+            };
+            onMounted(() => window.addEventListener('scroll', handleScroll));
             
             return { 
                 list, loading, formatDate, 
@@ -253,7 +275,7 @@
             <div class="detail-layout" v-loading="loading">
                 <!-- 1. 视频播放器区域 -->
                 <div class="video-player-box">
-                    <video :src="videoInfo.play_url" controls autoplay style="width:100%; height:100%; object-fit: contain;"></video>
+                    <video ref="vPlayer" controls autoplay style="width:100%; height:100%; object-fit: contain;"></video>
                 </div>
                 
                 <!-- 2. 视频信息与发布者资料 -->
@@ -342,10 +364,31 @@
             const cmtText = ref('');
             const comments = ref([]);
             const upInfo = ref({}); // 发布者资料
+            const vPlayer = ref(null);
             
             const currentUID = localStorage.getItem('user_id');
             const currentAccountAvatar = ref('https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png');
             const isAuthor = ref(currentUID == videoInfo.author_id);
+
+            // HLS 播放逻辑
+            onMounted(() => {
+                if (Hls.isSupported() && videoInfo.play_url.endsWith('.m3u8')) {
+                    const hls = new Hls();
+                    hls.loadSource(videoInfo.play_url);
+                    hls.attachMedia(vPlayer.value);
+                } else {
+                    vPlayer.value.src = videoInfo.play_url;
+                }
+                
+                fetchUploader();
+                fetchCmt();
+                // 获取当前登录者的头像用于评论框
+                if(currentUID) {
+                    axios.get(`${API_BASE}/user/info?user_id=${currentUID}`).then(res => {
+                        if(res.data.status_code === 0) currentAccountAvatar.value = res.data.user.avatar;
+                    });
+                }
+            });
 
             // 1. 获取发布者信息
             const fetchUploader = async () => {
@@ -409,19 +452,19 @@
             const formatDate = (s) => s ? new Date(s).toLocaleString() : '';
 
             // 初始化
-            onMounted(() => {
-                fetchUploader();
-                fetchCmt();
-                // 获取当前登录者的头像用于评论框
-                if(currentUID) {
-                    axios.get(`${API_BASE}/user/info?user_id=${currentUID}`).then(res => {
-                        if(res.data.status_code === 0) currentAccountAvatar.value = res.data.user.avatar;
-                    });
-                }
-            });
+            // onMounted(() => {
+            //     fetchUploader();
+            //     fetchCmt();
+            //     // 获取当前登录者的头像用于评论框
+            //     if(currentUID) {
+            //         axios.get(`${API_BASE}/user/info?user_id=${currentUID}`).then(res => {
+            //             if(res.data.status_code === 0) currentAccountAvatar.value = res.data.user.avatar;
+            //         });
+            //     }
+            // });
 
             return { 
-                videoInfo, loading, isLiked, cmtText, comments, upInfo,
+                videoInfo, loading, isLiked, cmtText, comments, upInfo, vPlayer,
                 isAuthor, currentAccountAvatar, postCmt, toggleLike, doDel, formatDate 
             };
         }
@@ -518,12 +561,100 @@
         }
     };
 
+    // ================= UserProfile 个人主页 =================
+    const UserProfile = {
+        template: `
+            <div class="detail-layout">
+                <div class="glass-panel" style="text-align:center; padding:40px; margin-bottom:20px;">
+                    <el-avatar :size="100" :src="user.avatar" style="border:4px solid white; box-shadow:0 5px 15px rgba(0,0,0,0.1)"></el-avatar>
+                    <h2 style="margin:15px 0 5px; color:var(--text-title)">{{ user.nickname }}</h2>
+                    <div style="color:#888; font-size:14px">ID: {{ user.id }}</div>
+                </div>
+
+                <div class="glass-panel" style="padding:20px">
+                    <el-tabs v-model="activeTab">
+                        <el-tab-pane label="我的作品" name="works">
+                            <div v-if="works.length > 0" class="video-grid">
+                                <div class="video-card" v-for="item in works" :key="item.id" @click="goDetail(item)">
+                                    <div class="card-cover">
+                                        <img :src="item.cover_url">
+                                        <div v-if="item.type==='note'" style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.6); color:#fff; padding:2px 6px; font-size:10px; border-radius:4px;">笔记</div>
+                                    </div>
+                                    <div class="card-info">
+                                        <div class="card-title">{{ item.title }}</div>
+                                        <div style="margin-top:10px; text-align:right;">
+                                            <el-button type="danger" size="small" icon="Delete" circle @click.stop="doDel(item)"></el-button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <el-empty v-else description="暂无作品"></el-empty>
+                        </el-tab-pane>
+                        <el-tab-pane label="收到的赞" name="likes">
+                            <div v-if="likes.length > 0">
+                                <div v-for="(item, i) in likes" :key="i" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid #eee;">
+                                    <el-avatar :size="50" :src="item.liker_avatar"></el-avatar>
+                                    <div style="flex:1; margin-left:15px;">
+                                        <div style="font-weight:bold; color:var(--magic-blue)">{{ item.liker_name }}</div>
+                                        <div style="color:#666; font-size:14px; margin-top:5px;">赞了你的作品 <span style="font-weight:bold; color:#333">《{{ item.video_title }}》</span></div>
+                                    </div>
+                                    <img :src="item.video_cover" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
+                                </div>
+                            </div>
+                            <el-empty v-else description="还没有人给你点赞哦"></el-empty>
+                        </el-tab-pane>
+                    </el-tabs>
+                </div>
+            </div>
+        `,
+        setup() {
+            const user = ref({});
+            const activeTab = ref('works');
+            const works = ref([]);
+            const likes = ref([]);
+            const router = useRouter();
+            const myID = localStorage.getItem('user_id');
+
+            const fetchWorks = async () => {
+                const res = await axios.get(API_BASE + '/publish/list?user_id=' + myID);
+                if(res.data.status_code === 0) works.value = res.data.video_list || [];
+            };
+
+            const fetchLikes = async () => {
+                const res = await axios.get(API_BASE + '/user/likes_received?user_id=' + myID);
+                if(res.data.status_code === 0) likes.value = res.data.list || [];
+            };
+
+            const doDel = (item) => {
+                if(item.type === 'note') return ElementPlus.ElMessage.warning('笔记暂不支持在此删除');
+                ElementPlus.ElMessageBox.confirm('确定删除吗？', '提示', { type: 'warning' }).then(async () => {
+                    await axios.post(`${API_BASE}/publish/delete?video_id=${item.id}&user_id=${myID}`);
+                    fetchWorks();
+                });
+            };
+
+            onMounted(() => {
+                axios.get(`${API_BASE}/user/info?user_id=${myID}`).then(res => {
+                    if(res.data.status_code === 0) user.value = res.data.user;
+                });
+                fetchWorks();
+                fetchLikes();
+            });
+
+            return { 
+                user, activeTab, works, likes, doDel,
+                goDetail: (v) => router.push(v.type === 'note' ? { name: 'note', params: { id: v.id }, query: v } : { name: 'video', params: { id: v.id }, query: v })
+            };
+        }
+    };
+
     const app = createApp({
         setup() {
             const router = useRouter(); const showAuth = ref(false); const authLoading = ref(false);
             const isLoggedIn = ref(!!localStorage.getItem('token'));
             const myInfo = reactive({ nickname: '', avatar: '' });
             const authF = reactive({ username: '', password: '', isLogin: true });
+            const searchKw = ref('');
 
             const fetchMy = async () => { if(isLoggedIn.value) { const res = await axios.get(`${API_BASE}/user/info?user_id=${localStorage.getItem('user_id')}`); if(res.data.status_code===0) Object.assign(myInfo, res.data.user); } };
             const doA = async () => {
@@ -543,14 +674,20 @@
                 if(res.data.status_code===0) { myInfo.avatar = res.data.avatar_url; ElementPlus.ElMessage.success('魔法形象已更新'); }
             };
 
+            const doSearch = () => {
+                if(searchKw.value) router.push('/?keyword=' + searchKw.value);
+                else router.push('/');
+            };
+
             onMounted(fetchMy);
-            return { showAuth, authLoading, isLoggedIn, authF, doA, myInfo, uploadAvatar, tBg: () => document.getElementById('bgInput').click(), cBg: (e) => {const f=e.target.files[0]; if(f){const r=new FileReader(); r.onload=(ev)=>document.body.style.backgroundImage="url('"+ev.target.result+"')"; r.readAsDataURL(f);}}, goHome: () => router.push('/'), goUpload: () => router.push('/upload'), goNoteUpload: () => router.push('/upload_note'), hCmd: (c) => {if(c==='logout'){localStorage.clear();location.reload();} else if(c==='changeAvatar'){document.getElementById('avatarInput').click();}} };
+            return { showAuth, authLoading, isLoggedIn, authF, doA, myInfo, uploadAvatar, searchKw, doSearch, tBg: () => document.getElementById('bgInput').click(), cBg: (e) => {const f=e.target.files[0]; if(f){const r=new FileReader(); r.onload=(ev)=>document.body.style.backgroundImage="url('"+ev.target.result+"')"; r.readAsDataURL(f);}}, goHome: () => router.push('/'), goUpload: () => router.push('/upload'), goNoteUpload: () => router.push('/upload_note'), hCmd: (c) => {if(c==='logout'){localStorage.clear();location.reload();} else if(c==='changeAvatar'){document.getElementById('avatarInput').click();} else if(c==='goProfile'){router.push('/profile');}} };
         }
     });
 
     const routes = [ 
         { path: '/', component: Home }, 
-        { path: '/video/:id', name: 'video', component: VideoDetail }, 
+        { path: '/profile', component: UserProfile },
+        { path: '/video/:id', name: 'video', component: VideoDetail },
         { path: '/note/:id', name: 'note', component: NoteDetail },
         { path: '/upload', component: Upload }, 
         { path: '/upload_note', component: UploadNote } 

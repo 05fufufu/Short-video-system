@@ -50,32 +50,45 @@ func processVideo(msg TranscodeMessage) {
 		return
 	}
 
-	// 2. 转码
-	cmd := exec.Command("ffmpeg", "-y", "-i", localRaw, "-vcodec", "libx264", "-s", "640x360", localOut)
+	// 2. 转码 (HLS 切片)
+	// ffmpeg -i input.mp4 -c:v libx264 -c:a aac -strict -2 -f hls -hls_list_size 0 -hls_time 10 output.m3u8
+	cmd := exec.Command("ffmpeg", "-y", "-i", localRaw, "-c:v", "libx264", "-c:a", "aac", "-strict", "-2", "-f", "hls", "-hls_list_size", "0", "-hls_time", "5", "output.m3u8")
 	if err := cmd.Run(); err != nil {
-		log.Println("❌ FFmpeg 失败:", err)
+		log.Println("❌ FFmpeg HLS 转码失败:", err)
 		return
 	}
 
-	// 3. 上传成品
-	newObjName := strings.Replace(msg.FileName, "raw/", "processed/", 1)
-	config.MinioClient.FPutObject(ctx, config.MinioBucket, newObjName, localOut, minio.PutObjectOptions{ContentType: "video/mp4"})
+	// 3. 上传成品 (m3u8 + ts)
+	// 先上传 m3u8
+	m3u8Name := strings.Replace(msg.FileName, "raw/", "processed/", 1) + ".m3u8"
+	config.MinioClient.FPutObject(ctx, config.MinioBucket, m3u8Name, "output.m3u8", minio.PutObjectOptions{ContentType: "application/x-mpegURL"})
+
+	// 上传所有 ts 切片
+	files, _ := os.ReadDir(".")
+	for _, f := range files {
+		if strings.HasSuffix(f.Name(), ".ts") {
+			tsName := "processed/" + f.Name()
+			config.MinioClient.FPutObject(ctx, config.MinioBucket, tsName, f.Name(), minio.PutObjectOptions{ContentType: "video/MP2T"})
+			os.Remove(f.Name()) // 上传完删除本地 ts
+		}
+	}
 
 	// 4. 入库
-	playURL := fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, newObjName)
+	playURL := fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, m3u8Name)
 
 	video := models.Video{
 		AuthorID: msg.AuthorID,
 		Title:    msg.Title,
 		PlayURL:  playURL,
-		CoverURL: msg.CoverURL, // 使用前端传来的封面！
+		CoverURL: msg.CoverURL,
 		Status:   1,
 	}
 
 	config.DB.Create(&video)
-	log.Println("🎉 视频处理完成:", msg.Title)
+	log.Println("🎉 HLS 视频处理完成:", msg.Title)
 
 	// 清理
 	os.Remove(localRaw)
 	os.Remove(localOut)
+	os.Remove("output.m3u8")
 }
