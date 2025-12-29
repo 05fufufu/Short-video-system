@@ -18,7 +18,13 @@ const (
 	// 2. 公网访问域名：返回给别人浏览器看视频用的域名
 	// 🌟 重点：这里填 cpolar 给你的那个 8080 端口的公网地址 (去掉 http://)
 	// 例子：如果 cpolar 地址是 http://magic-girl.cpolar.top，这里就填 magic-girl.cpolar.top
-	MinioPublicServer = "71ebbed8.r17.cpolar.top"
+	MinioPublicServer = "6d2ffd2.r17.cpolar.top"
+
+	// === 备用方案：局域网热点演示 ===
+	// 如果 cpolar 挂了，可以用手机和电脑连同一个热点 (例如 iPhone 热点)
+	// 1. 电脑 cmd 输入 ipconfig 查看无线局域网适配器 IP (例如 172.20.10.4)
+	// 2. 将上面 MinioPublicServer 注释掉，取消下面这行的注释，并改为你的 IP:8080
+	//MinioPublicServer = "172.20.10.4:8080"
 
 	// 3. 访问凭证（需与 Linux Docker 中的配置一致）
 	MinioAccessKey = "admin"

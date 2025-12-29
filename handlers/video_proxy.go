@@ -25,8 +25,22 @@ func ProxyVideo(c *gin.Context) {
 	}
 	defer object.Close()
 
-	// 设置响应头，告诉浏览器这是一个 MP4 视频
-	c.Header("Content-Type", "video/mp4")
+	// 获取文件信息以设置正确的 Content-Type
+	stat, err := object.Stat()
+	if err == nil {
+		c.Header("Content-Type", stat.ContentType)
+	} else {
+		// 兜底策略
+		if strings.HasSuffix(objectPath, ".m3u8") {
+			c.Header("Content-Type", "application/x-mpegURL")
+		} else if strings.HasSuffix(objectPath, ".ts") {
+			c.Header("Content-Type", "video/MP2T")
+		} else if strings.HasSuffix(objectPath, ".jpg") || strings.HasSuffix(objectPath, ".jpeg") {
+			c.Header("Content-Type", "image/jpeg")
+		} else {
+			c.Header("Content-Type", "video/mp4")
+		}
+	}
 
 	// 将 MinIO 的流直接拷贝给外网用户
 	_, _ = io.Copy(c.Writer, object)

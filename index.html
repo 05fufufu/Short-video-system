@@ -138,9 +138,10 @@
 <script>
     const { createApp, ref, reactive, onMounted, watch } = Vue;
     const { createRouter, createWebHashHistory, useRouter, useRoute } = VueRouter;
-    //const API_BASE = 'http://localhost:8080';
-    //const API_BASE = 'http://172.20.10.4:8080';
-    const API_BASE = 'http://71ebbed8.r17.cpolar.top';
+    
+    // 🌟 核心修改：留空即可自动适配当前域名 (无论是 localhost、IP 还是 cpolar)
+    const API_BASE = ''; 
+    
     const Home = {
         template: `
             <div v-loading="loading">
