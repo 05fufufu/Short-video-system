@@ -13,7 +13,7 @@ var MinioClient *minio.Client
 const (
 	// 1. 内部连接地址：Windows 后端程序连接 Linux 虚拟机用的地址
 	// 用于后端直接上传、下载原始视频，走局域网速度快且稳定
-	MinioInnerEndpoint = "172.20.10.3:9000"
+	MinioInnerEndpoint = "172.20.10.6:9000"
 
 	// 2. 公网访问域名：返回给别人浏览器看视频用的域名
 	// 🌟 重点：这里填 cpolar 给你的那个 8080 端口的公网地址 (去掉 http://)

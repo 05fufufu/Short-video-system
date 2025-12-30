@@ -12,7 +12,7 @@ var MQChannel *amqp.Channel
 func InitRabbitMQ() {
 	var err error
 	// 连接 Linux 的 RabbitMQ
-	url := "amqp://guest:guest@172.20.10.3:5672/"
+	url := "amqp://guest:guest@172.20.10.6:5672/"
 	MQConn, err = amqp.Dial(url)
 	if err != nil {
 		log.Fatal("❌ RabbitMQ 连接失败: ", err)

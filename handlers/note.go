@@ -74,3 +74,22 @@ func PublishNote(c *gin.Context) {
 		"note": note,
 	})
 }
+
+// DeleteNote 删除笔记
+func DeleteNote(c *gin.Context) {
+	noteIDStr := c.Query("note_id")
+	if noteIDStr == "" {
+		noteIDStr = c.PostForm("note_id")
+	}
+	noteID, _ := strconv.ParseInt(noteIDStr, 10, 64)
+
+	if err := config.DB.Delete(&models.Note{}, noteID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status_code": 1, "status_msg": "删除失败"})
+		return
+	}
+
+	// 清除首页缓存
+	config.RDB.Del(config.Ctx, "feed:mixed:latest")
+
+	c.JSON(http.StatusOK, gin.H{"status_code": 0, "status_msg": "删除成功"})
+}

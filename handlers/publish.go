@@ -109,7 +109,7 @@ func DeleteAction(c *gin.Context) {
 		return tx.Delete(&video).Error
 	})
 
-	config.RDB.Del(config.Ctx, "feed:latest")
+	config.RDB.Del(config.Ctx, "feed:mixed:latest")
 	c.JSON(http.StatusOK, gin.H{"status_code": 0, "status_msg": "已抹除"})
 }
 

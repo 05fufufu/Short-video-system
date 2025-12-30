@@ -51,6 +51,7 @@ func InitRouter() *gin.Engine {
 
 	// 笔记模块
 	r.POST("/note/publish", handlers.PublishNote)
+	r.POST("/note/delete", handlers.DeleteNote)
 
 	// 互动模块
 	r.POST("/favorite/action", handlers.FavoriteAction)

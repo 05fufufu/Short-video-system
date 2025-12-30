@@ -242,6 +242,9 @@
                                 <span>发布于: {{ formatDate(info.created_at) }}</span>
                             </div>
                         </div>
+                        <div v-if="isAuthor" style="margin-left:auto; cursor:pointer; color:#f56c6c; display:flex; align-items:center; background:rgba(245,108,108,0.1); padding:8px 15px; border-radius:20px;" @click="doDel">
+                            <el-icon size="18"><Delete /></el-icon> <span style="margin-left:5px; font-size:14px; font-weight:bold">删除笔记</span>
+                        </div>
                     </div>
                 </div>
 
@@ -252,21 +255,48 @@
         `,
         setup() {
             const route = useRoute();
+            const router = useRouter();
             const info = reactive(route.query);
             const images = ref([]);
             const upInfo = ref({});
+            
+            const currentUID = localStorage.getItem('user_id');
+            // 注意：info.user_id 可能是 string，currentUID 也是 string，比较时最好统一
+            const isAuthor = ref(currentUID && info.user_id && currentUID.toString() === info.user_id.toString());
 
             try {
                 images.value = JSON.parse(info.images || '[]');
             } catch(e) { console.error(e); }
 
+            const doDel = () => {
+                ElementPlus.ElMessageBox.confirm('确定要删除这篇笔记吗？', '警告', {
+                    confirmButtonText: '确定',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }).then(async () => {
+                    try {
+                        const res = await axios.post(`${API_BASE}/note/delete?note_id=${info.id}`);
+                        if(res.data.status_code === 0) {
+                            ElementPlus.ElMessage.success('笔记已删除');
+                            router.push('/');
+                        } else {
+                            ElementPlus.ElMessage.error('删除失败: ' + res.data.status_msg);
+                        }
+                    } catch(e) { ElementPlus.ElMessage.error('删除失败'); }
+                }).catch(() => {});
+            };
+
             onMounted(() => {
-                axios.get(API_BASE+'/user/info?user_id='+info.author_id).then(res => {
-                    if(res.data.status_code === 0) upInfo.value = res.data.user;
-                });
+                // 笔记列表返回的是 user_id 而不是 author_id，这里做个兼容
+                const uid = info.user_id || info.author_id;
+                if(uid) {
+                    axios.get(API_BASE+'/user/info?user_id='+uid).then(res => {
+                        if(res.data.status_code === 0) upInfo.value = res.data.user;
+                    });
+                }
             });
 
-            return { info, images, upInfo, formatDate: (s) => s ? new Date(s).toLocaleString() : '' };
+            return { info, images, upInfo, isAuthor, doDel, formatDate: (s) => s ? new Date(s).toLocaleString() : '' };
         }
     };
 
@@ -627,11 +657,15 @@
             };
 
             const doDel = (item) => {
-                if(item.type === 'note') return ElementPlus.ElMessage.warning('笔记暂不支持在此删除');
                 ElementPlus.ElMessageBox.confirm('确定删除吗？', '提示', { type: 'warning' }).then(async () => {
-                    await axios.post(`${API_BASE}/publish/delete?video_id=${item.id}&user_id=${myID}`);
+                    if (item.type === 'note') {
+                        await axios.post(`${API_BASE}/note/delete?note_id=${item.id}&user_id=${myID}`);
+                    } else {
+                        await axios.post(`${API_BASE}/publish/delete?video_id=${item.id}&user_id=${myID}`);
+                    }
+                    ElementPlus.ElMessage.success('删除成功');
                     fetchWorks();
-                });
+                }).catch(() => {});
             };
 
             onMounted(() => {

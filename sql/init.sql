@@ -1,58 +1,61 @@
-version: '3.8'
+-- 业务主库
+CREATE DATABASE IF NOT EXISTS tiktok_db;
+USE tiktok_db;
 
-services:
-  mysql:
-    image: mysql:8.0
-    container_name: tiktok_mysql
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: tiktok_db
-      TZ: Asia/Shanghai
-    ports:
-      - "3307:3306"
-    volumes:
-      - ./mysql_data:/var/lib/mysql
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    command: --default-authentication-plugin=mysql_native_password --server-id=1 --log-bin=mysql-bin
+CREATE TABLE IF NOT EXISTS videos (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    author_id BIGINT,
+    play_url VARCHAR(255),
+    cover_url VARCHAR(255),
+    title VARCHAR(255),
+    status INT DEFAULT 0,
+    favorite_count INT DEFAULT 0,
+    created_at DATETIME
+);
 
-  mysql-slave:
-    image: mysql:8.0
-    container_name: tiktok_mysql_slave
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: tiktok_db
-      TZ: Asia/Shanghai
-    ports:
-      - "3308:3306"
-    volumes:
-      - ./mysql_slave_data:/var/lib/mysql
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    command: --default-authentication-plugin=mysql_native_password --server-id=2
-    depends_on:
-      - mysql
+CREATE TABLE IF NOT EXISTS notes (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT,
+    title VARCHAR(255),
+    content TEXT,
+    images TEXT,
+    created_at DATETIME
+);
 
-  redis:
-    image: redis:7.0
-    container_name: tiktok_redis
-    restart: always
-    ports:
-      - "6379:6379"
-    volumes:
-      - ./redis_data:/data
-    command: redis-server --appendonly yes
+CREATE TABLE IF NOT EXISTS user_login_map (
+    username VARCHAR(255) PRIMARY KEY,
+    user_id BIGINT
+);
 
-  minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
-    container_name: tiktok_minio
-    restart: always
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password123
-    volumes:
-      - ./minio_data:/data
-    command: server /data --console-address ":9001"
+CREATE TABLE IF NOT EXISTS comments (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    video_id BIGINT,
+    user_id BIGINT,
+    content TEXT,
+    created_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS likes (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT,
+    video_id BIGINT,
+    created_at DATETIME,
+    UNIQUE KEY idx_user_video (user_id, video_id)
+);
+
+-- 用户分片库
+CREATE DATABASE IF NOT EXISTS tiktok_user_0;
+CREATE DATABASE IF NOT EXISTS tiktok_user_1;
+
+USE tiktok_user_0;
+CREATE TABLE IF NOT EXISTS users (
+    id BIGINT PRIMARY KEY,
+    username VARCHAR(255),
+    password VARCHAR(255),
+    nickname VARCHAR(255),
+    avatar VARCHAR(255),
+    created_at DATETIME
+);
+
+USE tiktok_user_1;
+CREATE TABLE IF NOT EXISTS users LIKE tiktok_user_0.users;

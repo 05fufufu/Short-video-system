@@ -145,6 +145,7 @@ func UpdateAvatar(c *gin.Context) {
 		ContentType: "image/jpeg",
 	})
 	if err != nil {
+		fmt.Printf("❌ MinIO 上传失败: %v\n", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status_code": 1, "status_msg": "存储失败"})
 		return
 	}
