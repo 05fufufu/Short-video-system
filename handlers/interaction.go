@@ -232,6 +232,27 @@ func NotificationList(c *gin.Context) {
 			}
 		}
 
+		var title, cover string
+		if n.VideoID > 0 {
+			var v models.Video
+			if err := config.DB.Select("title, cover_url").First(&v, n.VideoID).Error; err == nil {
+				title = v.Title
+				cover = fixURL(v.CoverURL)
+			}
+		} else if n.NoteID > 0 {
+			var note models.Note
+			if err := config.DB.Select("title, images").First(&note, n.NoteID).Error; err == nil {
+				title = note.Title
+				var imgs []string
+				json.Unmarshal([]byte(note.Images), &imgs)
+				if len(imgs) > 0 {
+					cover = imgs[0]
+				} else {
+					cover = "https://via.placeholder.com/320x180/eef2ff/8aa9ff?text=Note"
+				}
+			}
+		}
+
 		result = append(result, gin.H{
 			"id":            n.ID,
 			"sender_name":   u.Nickname,
@@ -241,6 +262,8 @@ func NotificationList(c *gin.Context) {
 			"created_at":    n.CreatedAt.Format("01-02 15:04"),
 			"video_id":      n.VideoID,
 			"note_id":       n.NoteID,
+			"target_title":  title,
+			"target_cover":  cover,
 		})
 	}
 	c.JSON(200, gin.H{"status_code": 0, "list": result})

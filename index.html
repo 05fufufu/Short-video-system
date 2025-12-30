@@ -732,33 +732,22 @@
                             </div>
                             <el-empty v-else description="暂无作品"></el-empty>
                         </el-tab-pane>
-                        <el-tab-pane label="收到的赞" name="likes">
-                            <div v-if="likes.length > 0">
-                                <div v-for="(item, i) in likes" :key="i" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid #eee;">
-                                    <el-avatar :size="50" :src="item.liker_avatar"></el-avatar>
-                                    <div style="flex:1; margin-left:15px;">
-                                        <div style="font-weight:bold; color:var(--magic-blue)">{{ item.liker_name }}</div>
-                                        <div style="color:#666; font-size:14px; margin-top:5px;">
-                                            赞了你的{{ item.type==='note'?'笔记':'作品' }} <span style="font-weight:bold; color:#333">《{{ item.video_title }}》</span>
-                                        </div>
-                                    </div>
-                                    <img :src="item.video_cover" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
-                                </div>
-                            </div>
-                            <el-empty v-else description="还没有人给你点赞哦"></el-empty>
-                        </el-tab-pane>
                         <el-tab-pane label="消息通知" name="notifs">
                             <div v-if="notifs.length > 0">
-                                <div v-for="(item, i) in notifs" :key="i" style="display:flex; align-items:flex-start; padding:15px; border-bottom:1px solid #eee;">
+                                <div v-for="(item, i) in notifs" :key="i" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid #eee;">
                                     <el-avatar :size="50" :src="item.sender_avatar"></el-avatar>
                                     <div style="flex:1; margin-left:15px;">
                                         <div style="font-weight:bold; color:var(--magic-blue)">{{ item.sender_name }}</div>
                                         <div style="color:#333; font-size:15px; margin-top:5px;">
-                                            <span v-if="item.action_type===1">赞了你的作品</span>
+                                            <span v-if="item.action_type===1">赞了你的{{ item.note_id > 0 ? '笔记' : '作品' }}</span>
                                             <span v-else>评论了：{{ item.content }}</span>
+                                        </div>
+                                        <div style="color:#666; font-size:13px; margin-top:5px; background:#f9f9f9; padding:5px 10px; border-radius:4px; display:inline-block;">
+                                            <span style="font-weight:bold;">《{{ item.target_title }}》</span>
                                         </div>
                                         <div style="color:#999; font-size:12px; margin-top:5px;">{{ item.created_at }}</div>
                                     </div>
+                                    <img v-if="item.target_cover" :src="item.target_cover" style="width:80px; height:45px; object-fit:cover; border-radius:4px; margin-left:10px;">
                                 </div>
                             </div>
                             <el-empty v-else description="暂无新消息"></el-empty>
@@ -771,7 +760,6 @@
             const user = ref({});
             const activeTab = ref('works');
             const works = ref([]);
-            const likes = ref([]);
             const notifs = ref([]);
             const router = useRouter();
             const myID = localStorage.getItem('user_id');
@@ -779,11 +767,6 @@
             const fetchWorks = async () => {
                 const res = await axios.get(API_BASE + '/publish/list?user_id=' + myID);
                 if(res.data.status_code === 0) works.value = res.data.video_list || [];
-            };
-
-            const fetchLikes = async () => {
-                const res = await axios.get(API_BASE + '/user/likes_received?user_id=' + myID);
-                if(res.data.status_code === 0) likes.value = res.data.list || [];
             };
 
             const fetchNotifs = async () => {
@@ -808,12 +791,11 @@
                     if(res.data.status_code === 0) user.value = res.data.user;
                 });
                 fetchWorks();
-                fetchLikes();
                 fetchNotifs();
             });
 
             return { 
-                user, activeTab, works, likes, notifs, doDel,
+                user, activeTab, works, notifs, doDel,
                 goDetail: (v) => router.push(v.type === 'note' ? { name: 'note', params: { id: v.id }, query: v } : { name: 'video', params: { id: v.id }, query: v })
             };
         }
