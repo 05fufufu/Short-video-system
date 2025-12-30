@@ -1,3 +1,4 @@
+[README.md](https://github.com/user-attachments/files/24371445/README.md)
 # 🌸 魔法少女的视频网站 (Magic TikTok)
 
 这是一个基于 **Go (Gin)** + **Vue 3** + **Microservices** 架构的短视频平台。

@@ -1,68 +1,58 @@
--- 1. 创建数据库
-CREATE DATABASE IF NOT EXISTS tiktok_db;
-CREATE DATABASE IF NOT EXISTS tiktok_user_0;
-CREATE DATABASE IF NOT EXISTS tiktok_user_1;
+version: '3.8'
 
--- 2. 业务主库表结构
-USE tiktok_db;
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: tiktok_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: tiktok_db
+      TZ: Asia/Shanghai
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password --server-id=1 --log-bin=mysql-bin
 
-CREATE TABLE IF NOT EXISTS videos (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    author_id BIGINT NOT NULL,
-    play_url VARCHAR(255) NOT NULL,
-    cover_url VARCHAR(255) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    status INT DEFAULT 0 COMMENT '0:处理中 1:已发布',
-    favorite_count INT DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  mysql-slave:
+    image: mysql:8.0
+    container_name: tiktok_mysql_slave
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: tiktok_db
+      TZ: Asia/Shanghai
+    ports:
+      - "3308:3306"
+    volumes:
+      - ./mysql_slave_data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password --server-id=2
+    depends_on:
+      - mysql
 
-CREATE TABLE IF NOT EXISTS notes (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    content TEXT,
-    images TEXT COMMENT 'JSON array',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  redis:
+    image: redis:7.0
+    container_name: tiktok_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis_data:/data
+    command: redis-server --appendonly yes
 
-CREATE TABLE IF NOT EXISTS comments (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    video_id BIGINT NOT NULL,
-    content TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS likes (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    video_id BIGINT NOT NULL,
-    is_deleted INT DEFAULT 0
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-CREATE TABLE IF NOT EXISTS user_login_map (
-    username VARCHAR(255) PRIMARY KEY,
-    user_id BIGINT NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 3. 用户分片库表结构
-USE tiktok_user_0;
-CREATE TABLE IF NOT EXISTS users (
-    id BIGINT PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    nickname VARCHAR(255) NOT NULL,
-    avatar VARCHAR(255),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-USE tiktok_user_1;
-CREATE TABLE IF NOT EXISTS users (
-    id BIGINT PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    nickname VARCHAR(255) NOT NULL,
-    avatar VARCHAR(255),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: tiktok_minio
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password123
+    volumes:
+      - ./minio_data:/data
+    command: server /data --console-address ":9001"
