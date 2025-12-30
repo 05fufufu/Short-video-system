@@ -7,6 +7,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/plugin/dbresolver"
+	"tiktok-server/models"
 )
 
 var (
@@ -38,6 +39,9 @@ func InitDB() {
 	if err != nil {
 		log.Println("⚠️ 读写分离配置失败 (可能是从库未启动): ", err)
 	}
+
+	// 自动迁移 Notification 表
+	DB.AutoMigrate(&models.Notification{})
 
 	// 2. 初始化 2 个用户分片库 (tiktok_user_0, tiktok_user_1)
 	UserDBs = make([]*gorm.DB, 2)

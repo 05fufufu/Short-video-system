@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS user_login_map (
 
 CREATE TABLE IF NOT EXISTS comments (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    video_id BIGINT,
+    video_id BIGINT DEFAULT 0,
+    note_id BIGINT DEFAULT 0,
     user_id BIGINT,
     content TEXT,
     created_at DATETIME
@@ -38,9 +39,22 @@ CREATE TABLE IF NOT EXISTS comments (
 CREATE TABLE IF NOT EXISTS likes (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     user_id BIGINT,
-    video_id BIGINT,
+    video_id BIGINT DEFAULT 0,
+    note_id BIGINT DEFAULT 0,
     created_at DATETIME,
-    UNIQUE KEY idx_user_video (user_id, video_id)
+    UNIQUE KEY idx_user_video_note (user_id, video_id, note_id)
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT,
+    sender_id BIGINT,
+    action_type INT,
+    video_id BIGINT DEFAULT 0,
+    note_id BIGINT DEFAULT 0,
+    content TEXT,
+    is_read INT DEFAULT 0,
+    created_at DATETIME
 );
 
 -- 用户分片库

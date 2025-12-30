@@ -16,7 +16,6 @@ func main() {
 
 	// 2. 启动后台 Workers
 	service.StartTranscodeWorker()
-	service.StartLikeWorker()
 
 	// 3. 启动 Web 服务
 	r := routes.InitRouter()

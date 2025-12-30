@@ -32,7 +32,7 @@ func InitRouter() *gin.Engine {
 	})
 
 	// 设置上传限制
-	r.MaxMultipartMemory = 100 << 20
+	r.MaxMultipartMemory = 500 << 20
 
 	// --- 路由注册 ---
 	// 用户模块
@@ -55,9 +55,11 @@ func InitRouter() *gin.Engine {
 
 	// 互动模块
 	r.POST("/favorite/action", handlers.FavoriteAction)
+	r.GET("/favorite/status", handlers.FavoriteStatus)
 	r.GET("/user/likes_received", handlers.ReceivedLikesList)
 	r.POST("/comment/action", handlers.CommentAction)
 	r.GET("/comment/list", handlers.CommentList)
+	r.GET("/notification/list", handlers.NotificationList)
 	// 1. 托管背景图片 (让外网能访问到你本地的 bg.jpg)
 	r.StaticFile("/bg.jpg", "./bg.jpg")
 

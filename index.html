@@ -178,8 +178,12 @@
                 loading.value = true; 
                 try { 
                     let url = API_BASE+'/feed';
+                    const uid = localStorage.getItem('user_id');
+                    if (uid) url += '?user_id=' + uid;
+
                     if (route.query.keyword) {
                         url = API_BASE+'/search?keyword=' + route.query.keyword;
+                        if (uid) url += '&user_id=' + uid;
                     }
                     const res = await axios.get(url); 
                     list.value = res.data.video_list || []; 
@@ -242,6 +246,15 @@
                                 <span>发布于: {{ formatDate(info.created_at) }}</span>
                             </div>
                         </div>
+                        
+                        <!-- 互动按钮组 -->
+                        <div class="action-bar" style="margin:0 0 0 20px">
+                            <div class="action-btn" :class="{active: isLiked}" @click="toggleLike">
+                                <el-icon size="20"><Pointer /></el-icon>
+                                <span style="margin-left:8px">{{ isLiked ? '已点赞' : '点赞' }}</span>
+                            </div>
+                        </div>
+
                         <div v-if="isAuthor" style="margin-left:auto; cursor:pointer; color:#f56c6c; display:flex; align-items:center; background:rgba(245,108,108,0.1); padding:8px 15px; border-radius:20px;" @click="doDel">
                             <el-icon size="18"><Delete /></el-icon> <span style="margin-left:5px; font-size:14px; font-weight:bold">删除笔记</span>
                         </div>
@@ -251,6 +264,39 @@
                 <div class="glass-panel">
                     <div style="white-space: pre-wrap; font-size: 18px; line-height: 1.8; color:#333;">{{ info.content }}</div>
                 </div>
+
+                <!-- 评论区 -->
+                <div class="glass-panel">
+                    <h3 style="margin-top:0; font-family:'ZCOOL KuaiLe'; font-size:24px;">魔法留言板 ({{ comments.length }})</h3>
+                    
+                    <div style="display:flex; gap:15px; margin:25px 0;">
+                        <el-avatar :size="45" :src="currentAccountAvatar"></el-avatar>
+                        <div style="flex:1">
+                            <el-input v-model="cmtText" type="textarea" :rows="2" placeholder="输入你的咒语评论..." maxlength="200" show-word-limit></el-input>
+                            <div style="text-align:right; margin-top:10px;">
+                                <el-button type="primary" @click="postCmt" color="#ff758c" style="font-weight:bold; color:white; padding:0 30px;">施法</el-button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="comment-list">
+                        <div v-for="c in comments" :key="c.id" style="display:flex; gap:15px; margin-bottom:25px; padding-bottom:20px; border-bottom:1px solid rgba(0,0,0,0.05)">
+                            <el-avatar :size="45" style="border:1px solid #eee" :src="c.user_avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'"></el-avatar>
+                            <div style="flex:1">
+                                <div style="color:var(--magic-blue); font-weight:bold; font-size:15px; margin-bottom:5px;">
+                                    {{ c.user_nickname || '魔法学徒' }}
+                                    <el-tag v-if="c.user_id == info.user_id" size="small" type="danger" style="margin-left:10px; zoom:0.8">发布者</el-tag>
+                                </div>
+                                <div style="color:#333; font-size:16px; line-height:1.6">{{ c.content }}</div>
+                                <div style="color:#aaa; font-size:12px; margin-top:10px;">{{ c.create_date }}</div>
+                            </div>
+                        </div>
+                        <div v-if="comments.length === 0" style="text-align:center; color:#999; padding:60px;">
+                            <el-icon size="40" style="opacity:0.3"><ChatDotRound /></el-icon>
+                            <p>还没有人留下咒语，快来抢沙发吧~</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         `,
         setup() {
@@ -259,14 +305,52 @@
             const info = reactive(route.query);
             const images = ref([]);
             const upInfo = ref({});
+            const comments = ref([]);
+            const cmtText = ref('');
+            const isLiked = ref(info.is_favorite === 'true' || info.is_favorite === true);
             
             const currentUID = localStorage.getItem('user_id');
+            const currentAccountAvatar = ref('https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png');
             // 注意：info.user_id 可能是 string，currentUID 也是 string，比较时最好统一
             const isAuthor = ref(currentUID && info.user_id && currentUID.toString() === info.user_id.toString());
 
             try {
                 images.value = JSON.parse(info.images || '[]');
             } catch(e) { console.error(e); }
+
+            const fetchCmt = async () => {
+                try {
+                    const res = await axios.get(`${API_BASE}/comment/list?note_id=${info.id}`);
+                    if (res.data.status_code === 0) {
+                        comments.value = res.data.comment_list || [];
+                    }
+                } catch(e) { console.error("加载评论失败", e); }
+            };
+
+            const postCmt = async () => {
+                if(!cmtText.value.trim()) return ElementPlus.ElMessage.warning('咒语不能为空');
+                if(!currentUID) return ElementPlus.ElMessage.error('请先签订契约（登录）');
+
+                try {
+                    const url = `${API_BASE}/comment/action?note_id=${info.id}&comment_text=${encodeURIComponent(cmtText.value)}&user_id=${currentUID}&action_type=1`;
+                    const res = await axios.post(url);
+                    if(res.data.status_code === 0) {
+                        cmtText.value = '';
+                        fetchCmt();
+                        ElementPlus.ElMessage.success('咒语已传达！');
+                    }
+                } catch(e) { ElementPlus.ElMessage.error('施法中断（发送失败）'); }
+            };
+
+            const toggleLike = async () => {
+                if(!currentUID) return ElementPlus.ElMessage.error('请先登录');
+                const action = isLiked.value ? 2 : 1;
+                try {
+                    await axios.post(`${API_BASE}/favorite/action?note_id=${info.id}&user_id=${currentUID}&action_type=${action}`);
+                    isLiked.value = !isLiked.value;
+                    ElementPlus.ElMessage.success(isLiked.value ? '点赞成功' : '取消点赞');
+                } catch(e) {}
+            };
 
             const doDel = () => {
                 ElementPlus.ElMessageBox.confirm('确定要删除这篇笔记吗？', '警告', {
@@ -294,9 +378,19 @@
                         if(res.data.status_code === 0) upInfo.value = res.data.user;
                     });
                 }
+                if(currentUID) {
+                    axios.get(`${API_BASE}/user/info?user_id=${currentUID}`).then(res => {
+                        if(res.data.status_code === 0) currentAccountAvatar.value = res.data.user.avatar;
+                    });
+                    // 检查点赞状态
+                    axios.get(`${API_BASE}/favorite/status?note_id=${info.id}&user_id=${currentUID}`).then(res => {
+                        if(res.data.status_code === 0) isLiked.value = res.data.is_favorite;
+                    });
+                }
+                fetchCmt();
             });
 
-            return { info, images, upInfo, isAuthor, doDel, formatDate: (s) => s ? new Date(s).toLocaleString() : '' };
+            return { info, images, upInfo, isAuthor, comments, cmtText, isLiked, currentAccountAvatar, postCmt, toggleLike, doDel, formatDate: (s) => s ? new Date(s).toLocaleString() : '' };
         }
     };
 
@@ -391,7 +485,7 @@
             const router = useRouter();
             const videoInfo = reactive(route.query);
             const loading = ref(false);
-            const isLiked = ref(false);
+            const isLiked = ref(videoInfo.is_favorite === 'true' || videoInfo.is_favorite === true);
             const cmtText = ref('');
             const comments = ref([]);
             const upInfo = ref({}); // 发布者资料
@@ -413,6 +507,7 @@
                 
                 fetchUploader();
                 fetchCmt();
+                checkLikeStatus();
                 // 获取当前登录者的头像用于评论框
                 if(currentUID) {
                     axios.get(`${API_BASE}/user/info?user_id=${currentUID}`).then(res => {
@@ -475,9 +570,25 @@
             };
 
             // 5. 点赞
-            const toggleLike = () => {
-                isLiked.value = !isLiked.value;
-                ElementPlus.ElMessage.success(isLiked.value ? '契约已签订！' : '契约已解除');
+            const toggleLike = async () => {
+                if(!currentUID) return ElementPlus.ElMessage.error('请先登录');
+                const action = isLiked.value ? 2 : 1;
+                try {
+                    await axios.post(`${API_BASE}/favorite/action?video_id=${videoInfo.id}&user_id=${currentUID}&action_type=${action}`);
+                    isLiked.value = !isLiked.value;
+                    ElementPlus.ElMessage.success(isLiked.value ? '契约已签订！' : '契约已解除');
+                } catch(e) {}
+            };
+
+            // 6. 检查点赞状态
+            const checkLikeStatus = async () => {
+                if(!currentUID) return;
+                try {
+                    const res = await axios.get(`${API_BASE}/favorite/status?video_id=${videoInfo.id}&user_id=${currentUID}`);
+                    if(res.data.status_code === 0) {
+                        isLiked.value = res.data.is_favorite;
+                    }
+                } catch(e) {}
             };
 
             const formatDate = (s) => s ? new Date(s).toLocaleString() : '';
@@ -627,12 +738,30 @@
                                     <el-avatar :size="50" :src="item.liker_avatar"></el-avatar>
                                     <div style="flex:1; margin-left:15px;">
                                         <div style="font-weight:bold; color:var(--magic-blue)">{{ item.liker_name }}</div>
-                                        <div style="color:#666; font-size:14px; margin-top:5px;">赞了你的作品 <span style="font-weight:bold; color:#333">《{{ item.video_title }}》</span></div>
+                                        <div style="color:#666; font-size:14px; margin-top:5px;">
+                                            赞了你的{{ item.type==='note'?'笔记':'作品' }} <span style="font-weight:bold; color:#333">《{{ item.video_title }}》</span>
+                                        </div>
                                     </div>
                                     <img :src="item.video_cover" style="width:80px; height:45px; object-fit:cover; border-radius:4px;">
                                 </div>
                             </div>
                             <el-empty v-else description="还没有人给你点赞哦"></el-empty>
+                        </el-tab-pane>
+                        <el-tab-pane label="消息通知" name="notifs">
+                            <div v-if="notifs.length > 0">
+                                <div v-for="(item, i) in notifs" :key="i" style="display:flex; align-items:flex-start; padding:15px; border-bottom:1px solid #eee;">
+                                    <el-avatar :size="50" :src="item.sender_avatar"></el-avatar>
+                                    <div style="flex:1; margin-left:15px;">
+                                        <div style="font-weight:bold; color:var(--magic-blue)">{{ item.sender_name }}</div>
+                                        <div style="color:#333; font-size:15px; margin-top:5px;">
+                                            <span v-if="item.action_type===1">赞了你的作品</span>
+                                            <span v-else>评论了：{{ item.content }}</span>
+                                        </div>
+                                        <div style="color:#999; font-size:12px; margin-top:5px;">{{ item.created_at }}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <el-empty v-else description="暂无新消息"></el-empty>
                         </el-tab-pane>
                     </el-tabs>
                 </div>
@@ -643,6 +772,7 @@
             const activeTab = ref('works');
             const works = ref([]);
             const likes = ref([]);
+            const notifs = ref([]);
             const router = useRouter();
             const myID = localStorage.getItem('user_id');
 
@@ -654,6 +784,11 @@
             const fetchLikes = async () => {
                 const res = await axios.get(API_BASE + '/user/likes_received?user_id=' + myID);
                 if(res.data.status_code === 0) likes.value = res.data.list || [];
+            };
+
+            const fetchNotifs = async () => {
+                const res = await axios.get(API_BASE + '/notification/list?user_id=' + myID);
+                if(res.data.status_code === 0) notifs.value = res.data.list || [];
             };
 
             const doDel = (item) => {
@@ -674,10 +809,11 @@
                 });
                 fetchWorks();
                 fetchLikes();
+                fetchNotifs();
             });
 
             return { 
-                user, activeTab, works, likes, doDel,
+                user, activeTab, works, likes, notifs, doDel,
                 goDetail: (v) => router.push(v.type === 'note' ? { name: 'note', params: { id: v.id }, query: v } : { name: 'video', params: { id: v.id }, query: v })
             };
         }

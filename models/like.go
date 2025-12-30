@@ -2,13 +2,13 @@ package models
 
 import "time"
 
-type Comment struct {
+type Like struct {
 	ID        int64     `json:"id"`
 	UserID    int64     `json:"user_id"`
 	VideoID   int64     `json:"video_id"`
 	NoteID    int64     `json:"note_id"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"create_date"`
+	CreatedAt time.Time `json:"created_at"`
+	IsDeleted int       `json:"is_deleted"` // 0: valid, 1: deleted
 }
 
-func (Comment) TableName() string { return "comments" }
+func (Like) TableName() string { return "likes" }

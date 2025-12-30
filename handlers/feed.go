@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"tiktok-server/config"
 	"tiktok-server/models"
@@ -25,6 +26,7 @@ type FeedItem struct {
 	PlayURL string `json:"play_url,omitempty"` // 视频专用
 	Content string `json:"content,omitempty"`  // 笔记专用
 	Images  string `json:"images,omitempty"`   // 笔记专用
+	IsFavorite bool `json:"is_favorite"`       // 是否已点赞
 }
 
 func fixURL(u string) string {
@@ -46,16 +48,19 @@ func fixURL(u string) string {
 }
 
 func FeedAction(c *gin.Context) {
+	userIDStr := c.Query("user_id")
+	var userID int64
+	if userIDStr != "" {
+		userID, _ = strconv.ParseInt(userIDStr, 10, 64)
+	}
+
 	var items []FeedItem
 	cacheKey := "feed:mixed:latest"
 
-	// 1. 尝试读缓存
-	val, err := config.RDB.Get(config.Ctx, cacheKey).Result()
-	if err == nil {
-		json.Unmarshal([]byte(val), &items)
-		c.JSON(200, gin.H{"status_code": 0, "video_list": items, "source": "cache"})
-		return
-	}
+	// 1. 尝试读缓存 (如果用户未登录，可以用缓存；登录用户需要实时查点赞状态，所以跳过缓存或缓存不含状态)
+	// 为了简单，这里暂时先跳过缓存，或者后续优化为"基础数据缓存+状态实时查"
+	// val, err := config.RDB.Get(config.Ctx, cacheKey).Result()
+	// if err == nil && userID == 0 { ... } 
 
 	// 2. 查视频
 	var videos []models.Video
@@ -67,18 +72,29 @@ func FeedAction(c *gin.Context) {
 
 	// 4. 合并
 	for _, v := range videos {
+		isFav := false
+		if userID > 0 {
+			isFav = config.RDB.SIsMember(config.Ctx, fmt.Sprintf("video_likes:%d", v.ID), userID).Val()
+		}
+
 		items = append(items, FeedItem{
-			ID:        v.ID,
-			Type:      "video",
-			Title:     v.Title,
-			CoverURL:  fixURL(v.CoverURL),
-			AuthorID:  v.AuthorID,
-			CreatedAt: v.CreatedAt,
-			PlayURL:   fixURL(v.PlayURL),
+			ID:         v.ID,
+			Type:       "video",
+			Title:      v.Title,
+			CoverURL:   fixURL(v.CoverURL),
+			AuthorID:   v.AuthorID,
+			CreatedAt:  v.CreatedAt,
+			PlayURL:    fixURL(v.PlayURL),
+			IsFavorite: isFav,
 		})
 	}
 
 	for _, n := range notes {
+		isFav := false
+		if userID > 0 {
+			isFav = config.RDB.SIsMember(config.Ctx, fmt.Sprintf("note_likes:%d", n.ID), userID).Val()
+		}
+
 		// 解析图片JSON取第一张作为封面
 		var imgs []string
 		json.Unmarshal([]byte(n.Images), &imgs)
@@ -88,14 +104,15 @@ func FeedAction(c *gin.Context) {
 		}
 
 		items = append(items, FeedItem{
-			ID:        n.ID,
-			Type:      "note",
-			Title:     n.Title,
-			CoverURL:  cover,
-			AuthorID:  n.UserID,
-			CreatedAt: n.CreatedAt,
-			Content:   n.Content,
-			Images:    n.Images,
+			ID:         n.ID,
+			Type:       "note",
+			Title:      n.Title,
+			CoverURL:   cover,
+			AuthorID:   n.UserID,
+			CreatedAt:  n.CreatedAt,
+			Content:    n.Content,
+			Images:     n.Images,
+			IsFavorite: isFav,
 		})
 	}
 
