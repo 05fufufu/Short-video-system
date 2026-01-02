@@ -19,8 +19,9 @@ func main() {
 	ctx := context.Background()
 	fmt.Println("🚀 开始清理所有数据...")
 
-	// 2. 清空 MySQL 表
-	tables := []string{"videos", "notes", "comments", "likes"}
+	// 2. 清空 MySQL 表 (需临时关闭外键检查)
+	config.DB.Exec("SET FOREIGN_KEY_CHECKS = 0")
+	tables := []string{"videos", "notes", "comments", "likes", "notifications"}
 	for _, table := range tables {
 		if err := config.DB.Exec("TRUNCATE TABLE " + table).Error; err != nil {
 			log.Printf("⚠️ 清理表 %s 失败: %v", table, err)
@@ -28,6 +29,7 @@ func main() {
 			fmt.Printf("✅ 表 %s 已清空\n", table)
 		}
 	}
+	config.DB.Exec("SET FOREIGN_KEY_CHECKS = 1")
 
 	// 3. 清空 MinIO 文件 (视频和封面)
 	objectsCh := make(chan minio.ObjectInfo)
