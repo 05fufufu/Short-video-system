@@ -101,9 +101,10 @@ func GetUserInfo(c *gin.Context) {
 
 	// 2. 查询信息
 	var user struct {
-		ID       int64  `json:"id"`
-		Nickname string `json:"nickname"`
-		Avatar   string `json:"avatar"`
+		ID              int64  `json:"id"`
+		Nickname        string `json:"nickname"`
+		Avatar          string `json:"avatar"`
+		BackgroundImage string `json:"background_image"`
 	}
 
 	// 从分片库的 users 表查
@@ -117,6 +118,13 @@ func GetUserInfo(c *gin.Context) {
 		parts := strings.Split(user.Avatar, "/video_file/")
 		if len(parts) >= 2 {
 			user.Avatar = fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, parts[1])
+		}
+	}
+	// 动态修复背景 URL
+	if strings.Contains(user.BackgroundImage, "/video_file/") && !strings.Contains(user.BackgroundImage, config.MinioPublicServer) {
+		parts := strings.Split(user.BackgroundImage, "/video_file/")
+		if len(parts) >= 2 {
+			user.BackgroundImage = fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, parts[1])
 		}
 	}
 
@@ -160,5 +168,41 @@ func UpdateAvatar(c *gin.Context) {
 		"status_code": 0,
 		"status_msg":  "更新成功",
 		"avatar_url":  avatarURL,
+	})
+}
+
+// UpdateBackgroundImage 更新用户背景图
+func UpdateBackgroundImage(c *gin.Context) {
+	userIDStr := c.PostForm("user_id")
+	userID, _ := strconv.ParseInt(userIDStr, 10, 64)
+
+	file, header, err := c.Request.FormFile("background")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status_code": 1, "status_msg": "图片获取失败"})
+		return
+	}
+
+	ctx := context.Background()
+	ext := filepath.Ext(header.Filename)
+	objectName := fmt.Sprintf("backgrounds/%d_%s%s", userID, time.Now().Format("20060102150405"), ext)
+
+	_, err = config.MinioClient.PutObject(ctx, config.MinioBucket, objectName, file, header.Size, minio.PutObjectOptions{
+		ContentType: header.Header.Get("Content-Type"),
+	})
+	if err != nil {
+		fmt.Printf("❌ MinIO 上传失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"status_code": 1, "status_msg": "存储失败"})
+		return
+	}
+
+	bgURL := fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, objectName)
+
+	db := config.GetUserDB(userID)
+	db.Table("users").Where("id = ?", userID).Update("background_image", bgURL)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status_code": 0,
+		"status_msg":  "更新成功",
+		"background_url": bgURL,
 	})
 }

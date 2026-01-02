@@ -62,6 +62,9 @@ func InitDB() {
 			Policy:   dbresolver.RandomPolicy{},
 		}))
 
+		// 自动迁移 User 表 (确保新字段 background_image 生效)
+		udb.AutoMigrate(&models.User{})
+
 		UserDBs[i] = udb
 	}
 	log.Println("✅ 分库分表 + 读写分离 初始化成功")

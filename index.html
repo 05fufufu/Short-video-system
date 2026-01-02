@@ -860,7 +860,17 @@
             const authF = reactive({ username: '', password: '', isLogin: true });
             const searchKw = ref('');
 
-            const fetchMy = async () => { if(isLoggedIn.value) { const res = await axios.get(`${API_BASE}/user/info?user_id=${localStorage.getItem('user_id')}`); if(res.data.status_code===0) Object.assign(myInfo, res.data.user); } };
+            const fetchMy = async () => { 
+                if(isLoggedIn.value) { 
+                    const res = await axios.get(`${API_BASE}/user/info?user_id=${localStorage.getItem('user_id')}`); 
+                    if(res.data.status_code===0) {
+                        Object.assign(myInfo, res.data.user);
+                        if(res.data.user.background_image) {
+                            document.body.style.backgroundImage = `url('${res.data.user.background_image}')`;
+                        }
+                    } 
+                } 
+            };
             const doA = async () => {
                 authLoading.value = true; const p = authF.isLogin ? '/user/login' : '/user/register';
                 try {
@@ -883,8 +893,27 @@
                 else router.push('/');
             };
 
+            const changeBg = async (e) => {
+                const f = e.target.files[0]; 
+                if(f){
+                    const r = new FileReader(); 
+                    r.onload=(ev)=>document.body.style.backgroundImage="url('"+ev.target.result+"')"; 
+                    r.readAsDataURL(f);
+                    
+                    if(isLoggedIn.value) {
+                        const fd = new FormData();
+                        fd.append('background', f);
+                        fd.append('user_id', localStorage.getItem('user_id'));
+                        try {
+                            await axios.post(API_BASE+'/user/update_background', fd);
+                            ElementPlus.ElMessage.success('背景已同步至魔法契约');
+                        } catch(e) { ElementPlus.ElMessage.warning('背景仅本地生效(保存失败)'); }
+                    }
+                }
+            };
+
             onMounted(fetchMy);
-            return { showAuth, authLoading, isLoggedIn, authF, doA, myInfo, uploadAvatar, searchKw, doSearch, tBg: () => document.getElementById('bgInput').click(), cBg: (e) => {const f=e.target.files[0]; if(f){const r=new FileReader(); r.onload=(ev)=>document.body.style.backgroundImage="url('"+ev.target.result+"')"; r.readAsDataURL(f);}}, goHome: () => router.push('/'), goUpload: () => router.push('/upload'), goNoteUpload: () => router.push('/upload_note'), hCmd: (c) => {if(c==='logout'){localStorage.clear();location.reload();} else if(c==='changeAvatar'){document.getElementById('avatarInput').click();} else if(c==='goProfile'){router.push('/profile');}} };
+            return { showAuth, authLoading, isLoggedIn, authF, doA, myInfo, uploadAvatar, searchKw, doSearch, tBg: () => document.getElementById('bgInput').click(), cBg: changeBg, goHome: () => router.push('/'), goUpload: () => router.push('/upload'), goNoteUpload: () => router.push('/upload_note'), hCmd: (c) => {if(c==='logout'){localStorage.clear();location.reload();} else if(c==='changeAvatar'){document.getElementById('avatarInput').click();} else if(c==='goProfile'){router.push('/profile');}} };
         }
     });
 

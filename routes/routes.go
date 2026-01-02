@@ -39,6 +39,7 @@ func InitRouter() *gin.Engine {
 	r.POST("/user/register", handlers.Register)
 	r.POST("/user/login", handlers.Login)
 	r.POST("/user/update_avatar", handlers.UpdateAvatar)
+	r.POST("/user/update_background", handlers.UpdateBackgroundImage) // 新增背景更新接口
 	r.GET("/user/info", handlers.GetUserInfo) // 获取用户信息接口
 
 	// 视频模块
