@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"tiktok-server/config"
 	"tiktok-server/models"
@@ -137,41 +138,67 @@ func sendLikeNotification(msg LikeMessage) {
 
 func processVideo(msg TranscodeMessage) {
 	ctx := context.Background()
-	localRaw := "temp_raw.mp4"
-	localOut := "temp_out.mp4"
+	localRaw := "temp_raw_" + filepath.Base(msg.FileName)
+	outputDir := "output_" + strings.TrimSuffix(filepath.Base(msg.FileName), filepath.Ext(msg.FileName))
 
-	// 1. 下载
+	// 清理工作
+	defer os.Remove(localRaw)
+	defer os.RemoveAll(outputDir)
+
+	// 1. 下载原始视频
 	err := config.MinioClient.FGetObject(ctx, config.MinioBucket, msg.FileName, localRaw, minio.GetObjectOptions{})
 	if err != nil {
-		log.Println("下载失败:", err)
+		log.Println("❌ 下载失败:", err)
 		return
 	}
 
-	// 2. 转码 (HLS 切片)
-	// ffmpeg -i input.mp4 -c:v libx264 -c:a aac -strict -2 -f hls -hls_list_size 0 -hls_time 10 output.m3u8
-	cmd := exec.Command("ffmpeg", "-y", "-i", localRaw, "-c:v", "libx264", "-c:a", "aac", "-strict", "-2", "-f", "hls", "-hls_list_size", "0", "-hls_time", "5", "output.m3u8")
-	if err := cmd.Run(); err != nil {
-		log.Println("❌ FFmpeg HLS 转码失败:", err)
+	// 创建输出目录
+	os.Mkdir(outputDir, 0755)
+
+	// 2. 转码 - 生成 720P (高清)
+	cmdHigh := exec.Command("ffmpeg", "-y", "-i", localRaw, "-vf", "scale=-2:720", "-c:v", "libx264", "-b:v", "1500k", "-c:a", "aac", "-f", "hls", "-hls_list_size", "0", "-hls_time", "5", "-hls_segment_filename", filepath.Join(outputDir, "high_%03d.ts"), filepath.Join(outputDir, "high.m3u8"))
+	if err := cmdHigh.Run(); err != nil {
+		log.Println("❌ FFmpeg 720P 转码失败:", err)
 		return
 	}
 
-	// 3. 上传成品 (m3u8 + ts)
-	// 先上传 m3u8
-	m3u8Name := strings.Replace(msg.FileName, "raw/", "processed/", 1) + ".m3u8"
-	config.MinioClient.FPutObject(ctx, config.MinioBucket, m3u8Name, "output.m3u8", minio.PutObjectOptions{ContentType: "application/x-mpegURL"})
+	// 3. 转码 - 生成 480P (标清)
+	cmdLow := exec.Command("ffmpeg", "-y", "-i", localRaw, "-vf", "scale=-2:480", "-c:v", "libx264", "-b:v", "600k", "-c:a", "aac", "-f", "hls", "-hls_list_size", "0", "-hls_time", "5", "-hls_segment_filename", filepath.Join(outputDir, "low_%03d.ts"), filepath.Join(outputDir, "low.m3u8"))
+	if err := cmdLow.Run(); err != nil {
+		log.Println("❌ FFmpeg 480P 转码失败:", err)
+		return
+	}
 
-	// 上传所有 ts 切片
-	files, _ := os.ReadDir(".")
+	// 4. 生成 Master Playlist
+	masterContent := "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1600000,RESOLUTION=1280x720\nhigh.m3u8\n#EXT-X-STREAM-INF:BANDWIDTH=700000,RESOLUTION=854x480\nlow.m3u8"
+	os.WriteFile(filepath.Join(outputDir, "master.m3u8"), []byte(masterContent), 0644)
+
+	// 5. 上传所有文件
+	// 目标路径前缀: processed/文件名(无后缀)/
+	baseName := strings.TrimSuffix(filepath.Base(msg.FileName), filepath.Ext(msg.FileName))
+	// 注意：MinIO 路径必须用 /，不能用 filepath.Join (Windows下是反斜杠)
+	remotePrefix := "processed/" + baseName + "/"
+
+	files, _ := os.ReadDir(outputDir)
 	for _, f := range files {
-		if strings.HasSuffix(f.Name(), ".ts") {
-			tsName := "processed/" + f.Name()
-			config.MinioClient.FPutObject(ctx, config.MinioBucket, tsName, f.Name(), minio.PutObjectOptions{ContentType: "video/MP2T"})
-			os.Remove(f.Name()) // 上传完删除本地 ts
+		localPath := filepath.Join(outputDir, f.Name())
+		remotePath := remotePrefix + f.Name()
+		
+		contentType := "application/octet-stream"
+		if strings.HasSuffix(f.Name(), ".m3u8") {
+			contentType = "application/x-mpegURL"
+		} else if strings.HasSuffix(f.Name(), ".ts") {
+			contentType = "video/MP2T"
+		}
+
+		_, err := config.MinioClient.FPutObject(ctx, config.MinioBucket, remotePath, localPath, minio.PutObjectOptions{ContentType: contentType})
+		if err != nil {
+			log.Printf("❌ 上传文件 %s 失败: %v", f.Name(), err)
 		}
 	}
 
-	// 4. 入库
-	playURL := fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, m3u8Name)
+	// 6. 入库
+	playURL := fmt.Sprintf("http://%s/video_file/%s", config.MinioPublicServer, remotePrefix+"master.m3u8")
 
 	video := models.Video{
 		AuthorID: msg.AuthorID,
@@ -182,10 +209,5 @@ func processVideo(msg TranscodeMessage) {
 	}
 
 	config.DB.Create(&video)
-	log.Println("🎉 HLS 视频处理完成:", msg.Title)
-
-	// 清理
-	os.Remove(localRaw)
-	os.Remove(localOut)
-	os.Remove("output.m3u8")
+	log.Println("🎉 多清晰度视频处理完成:", msg.Title)
 }

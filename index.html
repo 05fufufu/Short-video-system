@@ -236,6 +236,10 @@
                 </div>
                 
                 <div class="video-header">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px;">
+                        <el-button circle icon="ArrowLeft" @click="$router.back()" title="返回上一页"></el-button>
+                        <el-button round icon="HomeFilled" @click="$router.push('/')">回到首页</el-button>
+                    </div>
                     <h1 class="video-title-big"><el-tag type="success" style="margin-right:10px; vertical-align:middle">笔记</el-tag>{{ info.title }}</h1>
                     
                     <div class="uploader-card">
@@ -399,12 +403,31 @@
         template: `
             <div class="detail-layout" v-loading="loading">
                 <!-- 1. 视频播放器区域 -->
-                <div class="video-player-box">
+                <div class="video-player-box" style="position:relative">
                     <video ref="vPlayer" controls autoplay style="width:100%; height:100%; object-fit: contain;"></video>
+                    <!-- 清晰度切换按钮 -->
+                    <div v-if="levels.length > 0" style="position:absolute; top:20px; right:20px; z-index:100;">
+                        <el-dropdown @command="changeQuality">
+                            <el-button type="primary" size="small" round color="rgba(0,0,0,0.6)" style="color:white; border:1px solid rgba(255,255,255,0.3)">
+                                {{ currentLevelName }} <el-icon class="el-icon--right"><Arrow-Down /></el-icon>
+                            </el-button>
+                            <template #dropdown>
+                                <el-dropdown-menu>
+                                    <el-dropdown-item v-for="l in levels" :key="l.index" :command="l.index" :style="{color: currentLevel===l.index ? '#ff758c' : ''}">
+                                        {{ l.name }}
+                                    </el-dropdown-item>
+                                </el-dropdown-menu>
+                            </template>
+                        </el-dropdown>
+                    </div>
                 </div>
                 
                 <!-- 2. 视频信息与发布者资料 -->
                 <div class="video-header">
+                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:15px;">
+                        <el-button circle icon="ArrowLeft" @click="$router.back()" title="返回上一页"></el-button>
+                        <el-button round icon="HomeFilled" @click="$router.push('/')">回到首页</el-button>
+                    </div>
                     <h1 class="video-title-big">{{ videoInfo.title }}</h1>
                     
                     <div class="uploader-card">
@@ -490,6 +513,9 @@
             const comments = ref([]);
             const upInfo = ref({}); // 发布者资料
             const vPlayer = ref(null);
+            const levels = ref([]);
+            const currentLevel = ref(-1);
+            const currentLevelName = ref('自动');
             
             const currentUID = localStorage.getItem('user_id');
             const currentAccountAvatar = ref('https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png');
@@ -501,6 +527,21 @@
                     const hls = new Hls();
                     hls.loadSource(videoInfo.play_url);
                     hls.attachMedia(vPlayer.value);
+                    
+                    hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
+                        // 解析清晰度
+                        if(data.levels.length > 1) {
+                            levels.value = data.levels.map((l, idx) => ({
+                                index: idx,
+                                name: l.height + 'P',
+                                height: l.height
+                            }));
+                            levels.value.unshift({ index: -1, name: '自动' });
+                        }
+                    });
+                    
+                    // 暴露给切换函数使用
+                    window.hlsInstance = hls;
                 } else {
                     vPlayer.value.src = videoInfo.play_url;
                 }
@@ -591,6 +632,15 @@
                 } catch(e) {}
             };
 
+            const changeQuality = (idx) => {
+                if(window.hlsInstance) {
+                    window.hlsInstance.currentLevel = idx;
+                    currentLevel.value = idx;
+                    const found = levels.value.find(l => l.index === idx);
+                    if(found) currentLevelName.value = found.name;
+                }
+            };
+
             const formatDate = (s) => s ? new Date(s).toLocaleString() : '';
 
             // 初始化
@@ -607,7 +657,8 @@
 
             return { 
                 videoInfo, loading, isLiked, cmtText, comments, upInfo, vPlayer,
-                isAuthor, currentAccountAvatar, postCmt, toggleLike, doDel, formatDate 
+                isAuthor, currentAccountAvatar, postCmt, toggleLike, doDel, formatDate,
+                levels, currentLevel, currentLevelName, changeQuality
             };
         }
     };

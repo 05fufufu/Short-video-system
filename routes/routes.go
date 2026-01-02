@@ -43,6 +43,7 @@ func InitRouter() *gin.Engine {
 
 	// 视频模块
 	r.GET("/feed", handlers.FeedAction)
+	r.GET("/search", handlers.SearchAction) // 新增搜索接口
 	r.POST("/publish/action", handlers.PublishAction)
 	r.POST("/publish/delete", handlers.DeleteAction)
 	r.GET("/publish/list", handlers.PublishList)
