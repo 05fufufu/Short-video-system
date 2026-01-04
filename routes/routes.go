@@ -62,8 +62,9 @@ func InitRouter() *gin.Engine {
 	r.POST("/comment/action", handlers.CommentAction)
 	r.GET("/comment/list", handlers.CommentList)
 	r.GET("/notification/list", handlers.NotificationList)
-	// 1. 托管背景图片 (让外网能访问到你本地的 bg.jpg)
+	// 1. 托管背景图片
 	r.StaticFile("/bg.jpg", "./bg.jpg")
+	r.StaticFile("/mm.jpg", "./mm.jpg")
 
 	// 托管前端
 	r.StaticFile("/", "./index.html")

@@ -42,6 +42,7 @@ func StartTranscodeWorker() {
 		for d := range msgs {
 			var msg TranscodeMessage
 			json.Unmarshal(d.Body, &msg)
+			log.Printf("\n[MQ] 收到转码任务: %s (标题: %s)", msg.FileName, msg.Title) // 新增日志
 			processVideo(msg)
 		}
 	}()
@@ -156,6 +157,7 @@ func processVideo(msg TranscodeMessage) {
 	os.Mkdir(outputDir, 0755)
 
 	// 2. 转码 - 生成 720P (高清)
+	log.Println("⏳ 正在进行 720P 转码...") // 新增日志
 	cmdHigh := exec.Command("ffmpeg", "-y", "-i", localRaw, "-vf", "scale=-2:720", "-c:v", "libx264", "-b:v", "1500k", "-c:a", "aac", "-f", "hls", "-hls_list_size", "0", "-hls_time", "5", "-hls_segment_filename", filepath.Join(outputDir, "high_%03d.ts"), filepath.Join(outputDir, "high.m3u8"))
 	if err := cmdHigh.Run(); err != nil {
 		log.Println("❌ FFmpeg 720P 转码失败:", err)
@@ -163,6 +165,7 @@ func processVideo(msg TranscodeMessage) {
 	}
 
 	// 3. 转码 - 生成 480P (标清)
+	log.Println("⏳ 正在进行 480P 转码...") // 新增日志
 	cmdLow := exec.Command("ffmpeg", "-y", "-i", localRaw, "-vf", "scale=-2:480", "-c:v", "libx264", "-b:v", "600k", "-c:a", "aac", "-f", "hls", "-hls_list_size", "0", "-hls_time", "5", "-hls_segment_filename", filepath.Join(outputDir, "low_%03d.ts"), filepath.Join(outputDir, "low.m3u8"))
 	if err := cmdLow.Run(); err != nil {
 		log.Println("❌ FFmpeg 480P 转码失败:", err)
